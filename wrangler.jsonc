@@ -5,5 +5,12 @@
   "compatibility_flags": [
     "python_workers",
     "python_dedicated_snapshot"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agrinow",
+      "database_id": "ad61aee1-2112-42d3-805c-2052403d11c8"
+    }
   ]
 }
