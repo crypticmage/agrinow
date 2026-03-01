@@ -32,7 +32,7 @@ async def test_db(req: Request):
 
 
 @app.post("/items/{name}")
-async def create_item(name):
+async def create_item(name: str, req: Request):
     try:
         env = req.scope["env"]
         db = env.DB
