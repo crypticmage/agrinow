@@ -1,6 +1,13 @@
 from fastapi import FastAPI
-from workers import WorkerEntrypoint
-import asgi
+
+#### this is for cloudflare deployment  ################
+try:
+    from workers import WorkerEntrypoint
+    import asgi
+    CLOUDFLARE_ENV = True
+except ImportError:
+    CLOUDFLARE_ENV = False
+###################### End Cloudflare Deployment ############################
 
 app = FastAPI()
 
@@ -8,8 +15,12 @@ app = FastAPI()
 async def root():
     return {"message": "Success! FastAPI is live on Cloudflare."}
 
-# The entrypoint class Cloudflare looks for
-class Default(WorkerEntrypoint):
-    async def fetch(self, request):
-        # This converts the Cloudflare request into FastAPI format
-        return await asgi.fetch(app, request, self.env)
+
+
+############# This is for cloudflare################
+if CLOUDFLARE_ENV:
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            # This converts the Cloudflare request into FastAPI format
+            return await asgi.fetch(app, request, self.env)
+################# End cloudflare ##############################
