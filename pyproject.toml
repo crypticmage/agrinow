@@ -1,12 +1,16 @@
 [project]
 name = "agrinow"
 version = "0.1.0"
-description = "FastAPI running on Cloudflare Workers"
+description = "FastAPI on Cloudflare"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
-    "patterns-cloudflare-workers",
+]
+
+[dependency-groups]
+dev = [
+    "workers-py",
 ]
 
 [tool.uv]
