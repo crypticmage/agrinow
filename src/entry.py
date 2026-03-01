@@ -13,10 +13,10 @@ app = FastAPI()
 
 @app.get("/")
 async def root():
-    return {"message": "Success! FastAPI is live on Cloudflare."}
+    return {"message": "Yaee! WORK AGATHA EDDE"}
 
 
-
+# normal agi local nali run agala adike env variable set madini, ella andre error barute
 ############# This is for cloudflare################
 if CLOUDFLARE_ENV:
     class Default(WorkerEntrypoint):
