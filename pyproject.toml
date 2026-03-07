@@ -6,6 +6,11 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
+    "sqlalchemy",
+    "sqlalchemy-cloudflare-d1",
+    "cryptography",
+    "PyJWT",
+    "psycopg2-binary",
 ]
 
 [dependency-groups]

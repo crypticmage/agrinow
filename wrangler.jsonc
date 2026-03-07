@@ -12,5 +12,27 @@
       "database_name": "agrinow",
       "database_id": "ad61aee1-2112-42d3-805c-2052403d11c8"
     }
+  ],
+  "secrets_store_secrets": [
+    {
+      "binding": "JWT_SECRET_KEY",
+      "store_id": "9b8e031b4a6641bdbf3817daff0002a0",
+      "secret_name": "JWT_SECRET_KEY"
+    },
+    {
+      "binding": "ARGON2_SECRET_PEPPER",
+      "store_id": "9b8e031b4a6641bdbf3817daff0002a0",
+      "secret_name": "ARGON2_SECRET_PEPPER"
+    },
+    {
+      "binding": "ARGON2_ASSOCIATED_DATA",
+      "store_id": "9b8e031b4a6641bdbf3817daff0002a0",
+      "secret_name": "ARGON2_ASSOCIATED_DATA"
+    },
+    {
+      "binding": "SUPABASE_DATABASE_URL",
+      "store_id": "9b8e031b4a6641bdbf3817daff0002a0",
+      "secret_name": "SUPABASE_DATABASE_URL"
+    }
   ]
 }
