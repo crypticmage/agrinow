@@ -1,8 +1,13 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from database.database import engine
-import models # Here all the structures for th etables are defined
+import models
 from routers import create_user
+import os
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))  # Load project root .env
 #### this is for cloudflare deployment  ################
 try:
     from workers import WorkerEntrypoint
@@ -15,11 +20,55 @@ except ImportError:
 
 app = FastAPI()
 
-models.Base.metadata.create_all(bind=engine)# this is like create if not exists of sorts from the model definitions
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
+
+models.Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 async def root():
     return {"message": "Yaee! WORK AGATHA EDDE"}
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_form(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
+
+@app.get("/debug")
+async def debug_connections():
+    """Tests D1 and Supabase connections independently. Use this to diagnose errors."""
+    import httpx
+    from database.database import SessionLocal
+    from database.database_space import SUPABASE_URL, SUPABASE_SERVICE_KEY
+    results = {}
+
+    # --- Test 1: D1 (local SQLite) ---
+    try:
+        db = SessionLocal()
+        db.execute(__import__('sqlalchemy').text("SELECT 1"))
+        db.close()
+        results["D1_sqlite"] = {"status": "ok", "message": "Connected successfully"}
+    except Exception as e:
+        results["D1_sqlite"] = {"status": "error", "message": str(e)}
+
+    # --- Test 2: Supabase REST ---
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/user_keys?limit=1",
+                headers={
+                    "apikey": SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"
+                },
+                timeout=5
+            )
+        results["supabase_rest"] = {
+            "status": "ok" if resp.status_code < 400 else "error",
+            "http_status": resp.status_code,
+            "message": resp.text[:200]
+        }
+    except Exception as e:
+        results["supabase_rest"] = {"status": "error", "message": str(e)}
+
+    return results
 
 app.include_router(create_user.router)
 

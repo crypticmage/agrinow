@@ -28,11 +28,16 @@
       "binding": "ARGON2_ASSOCIATED_DATA",
       "store_id": "9b8e031b4a6641bdbf3817daff0002a0",
       "secret_name": "ARGON2_ASSOCIATED_DATA"
-    },
-    {
-      "binding": "SUPABASE_DATABASE_URL",
-      "store_id": "9b8e031b4a6641bdbf3817daff0002a0",
-      "secret_name": "SUPABASE_DATABASE_URL"
     }
+    // ,{
+    //   "binding": "SUPABASE_DATABASE_URL",
+    //   "store_id": "9b8e031b4a6641bdbf3817daff0002a0",
+    //   "secret_name": "SUPABASE_DATABASE_URL"
+    // }
+    // ,{
+    //   "binding": "SUPABASE_SERVICE_KEY",
+    //   "store_id": "9b8e031b4a6641bdbf3817daff0002a0",
+    //   "secret_name": "SUPABASE_SERVICE_KEY"
+    // }
   ]
 }

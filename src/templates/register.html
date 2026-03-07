@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agrinow — Register User</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2d1f 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.10);
+      backdrop-filter: blur(20px);
+      border-radius: 1.5rem;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+    }
+
+    .card-header { text-align: center; margin-bottom: 2rem; }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #4ade80;
+      margin-bottom: 0.5rem;
+    }
+
+    .logo svg { width: 28px; height: 28px; }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 0.3rem;
+    }
+
+    .subtitle { font-size: 0.875rem; color: #94a3b8; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .full { grid-column: 1 / -1; }
+
+    .field { display: flex; flex-direction: column; gap: 0.35rem; }
+
+    label { font-size: 0.8rem; font-weight: 500; color: #94a3b8; letter-spacing: 0.03em; text-transform: uppercase; }
+
+    input, select {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 0.6rem;
+      padding: 0.65rem 0.9rem;
+      font-size: 0.9rem;
+      color: #f1f5f9;
+      font-family: inherit;
+      transition: border-color 0.2s, background 0.2s;
+      width: 100%;
+    }
+
+    input::placeholder { color: #475569; }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #4ade80;
+      background: rgba(74,222,128,0.06);
+    }
+
+    select option { background: #1e293b; color: #f1f5f9; }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #4ade80;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      grid-column: 1 / -1;
+      padding-top: 0.5rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 0.8rem;
+      margin-top: 1.5rem;
+      background: linear-gradient(135deg, #16a34a, #4ade80);
+      color: #0f172a;
+      font-weight: 700;
+      font-size: 0.95rem;
+      border: none;
+      border-radius: 0.7rem;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    #response {
+      margin-top: 1.2rem;
+      padding: 1rem 1.2rem;
+      border-radius: 0.7rem;
+      font-size: 0.875rem;
+      display: none;
+      word-break: break-all;
+    }
+
+    #response.success {
+      display: block;
+      background: rgba(74,222,128,0.1);
+      border: 1px solid rgba(74,222,128,0.3);
+      color: #4ade80;
+    }
+
+    #response.error {
+      display: block;
+      background: rgba(248,113,113,0.1);
+      border: 1px solid rgba(248,113,113,0.3);
+      color: #f87171;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        Agrinow
+      </div>
+      <h1>Create Account</h1>
+      <p class="subtitle">Register a new user securely with Zero-Knowledge encryption</p>
+    </div>
+
+    <form id="registerForm">
+      <div class="grid">
+
+        <div class="section-label">Personal Info</div>
+
+        <div class="field">
+          <label for="first_name">First Name *</label>
+          <input type="text" id="first_name" name="first_name" placeholder="John" required />
+        </div>
+
+        <div class="field">
+          <label for="last_name">Last Name *</label>
+          <input type="text" id="last_name" name="last_name" placeholder="Doe" required />
+        </div>
+
+        <div class="field">
+          <label for="username">Username *</label>
+          <input type="text" id="username" name="username" placeholder="john_doe" required />
+        </div>
+
+        <div class="field">
+          <label for="email">Email *</label>
+          <input type="email" id="email" name="email" placeholder="john@example.com" required />
+        </div>
+
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input type="tel" id="phone" name="phone" placeholder="+91 98765 43210" />
+        </div>
+
+        <div class="field">
+          <label for="password">Password *</label>
+          <input type="password" id="password" name="password" placeholder="••••••••••" required />
+        </div>
+
+        <div class="section-label">Role & Work</div>
+
+        <div class="field">
+          <label for="role">Role *</label>
+          <select id="role" name="role" required>
+            <option value="" disabled selected>Select role</option>
+            <option value="admin">Admin</option>
+            <option value="manager">Manager</option>
+            <option value="farmer">Farmer</option>
+            <option value="agent">Agent</option>
+            <option value="analyst">Analyst</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="emp_type">Employee Type</label>
+          <select id="emp_type" name="emp_type">
+            <option value="" disabled selected>Select type</option>
+            <option value="full_time">Full Time</option>
+            <option value="part_time">Part Time</option>
+            <option value="contract">Contract</option>
+            <option value="intern">Intern</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="language">Language *</label>
+          <select id="language" name="language" required>
+            <option value="" disabled selected>Select language</option>
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="kn">Kannada</option>
+            <option value="te">Telugu</option>
+            <option value="ta">Tamil</option>
+            <option value="mr">Marathi</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="manager_id">Manager ID</label>
+          <input type="number" id="manager_id" name="manager_id" placeholder="e.g. 5" />
+        </div>
+
+        <div class="field">
+          <label for="hire_date">Hire Date *</label>
+          <input type="date" id="hire_date" name="hire_date" required />
+        </div>
+
+        <div class="field">
+          <label for="relive_date">Relieve Date</label>
+          <input type="date" id="relive_date" name="relive_date" />
+        </div>
+
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn">🔐 Create Account</button>
+    </form>
+
+    <div id="response"></div>
+  </div>
+
+  <script>
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const res = document.getElementById('response');
+      btn.disabled = true;
+      btn.textContent = 'Creating account...';
+      res.className = '';
+      res.style.display = 'none';
+
+      const form = e.target;
+      const body = {
+        username:   form.username.value.trim(),
+        email:      form.email.value.trim(),
+        first_name: form.first_name.value.trim(),
+        last_name:  form.last_name.value.trim(),
+        password:   form.password.value,
+        language:   form.language.value,
+        role:       form.role.value,
+        hire_date:  form.hire_date.value,
+      };
+
+      if (form.phone.value)      body.phone      = form.phone.value.trim();
+      if (form.emp_type.value)   body.emp_type   = form.emp_type.value;
+      if (form.manager_id.value) body.manager_id = parseInt(form.manager_id.value);
+      if (form.relive_date.value) body.relive_date = form.relive_date.value;
+
+      try {
+        const response = await fetch('/create_user/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await response.json();
+        if (response.ok) {
+          res.className = 'success';
+          res.textContent = `✅ Account created! Welcome, ${data.first_name} ${data.last_name} (ID: ${data.id})`;
+          form.reset();
+        } else {
+          res.className = 'error';
+          res.textContent = `❌ Error: ${data.detail || JSON.stringify(data)}`;
+        }
+      } catch (err) {
+        res.className = 'error';
+        res.textContent = `❌ Network error: ${err.message}`;
+      }
+
+      btn.disabled = false;
+      btn.textContent = '🔐 Create Account';
+    });
+  </script>
+</body>
+</html>

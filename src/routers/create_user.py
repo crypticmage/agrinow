@@ -83,9 +83,15 @@ async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependen
         return os.getenv(key, default)
 
     # FIX #6 — Duplicate user check BEFORE any crypto to prevent CPU abuse
-    existing_user = db.query(Users).filter(
-        (Users.username == user_req.username) | (Users.email == user_req.email)
-    ).first()
+    try:
+        existing_user = db.query(Users).filter(
+            (Users.username == user_req.username) | (Users.email == user_req.email)
+        ).first()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"[D1 DB Error] Failed to query users table: {e}"
+        )
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

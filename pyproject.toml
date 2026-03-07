@@ -10,7 +10,9 @@ dependencies = [
     "sqlalchemy-cloudflare-d1",
     "cryptography",
     "PyJWT",
-    "psycopg2-binary",
+    "httpx",
+    "jinja2",
+    "python-dotenv",
 ]
 
 [dependency-groups]
