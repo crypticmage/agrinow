@@ -1,24 +1,17 @@
 [project]
 name = "agrinow"
 version = "0.1.0"
-description = "FastAPI on Cloudflare"
+description = "FastAPI on Render"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
+    "uvicorn",
     "sqlalchemy",
-    "sqlalchemy-cloudflare-d1",
+    "psycopg2-binary",
     "cryptography",
     "PyJWT",
     "httpx",
     "jinja2",
     "python-dotenv",
 ]
-
-[dependency-groups]
-dev = [
-    "workers-py",
-]
-
-[tool.uv]
-managed = true

@@ -334,7 +334,18 @@
         const data = await response.json();
         if (response.ok) {
           res.className = 'success';
-          res.textContent = `✅ Account created! Welcome, ${data.first_name} ${data.last_name} (ID: ${data.id})`;
+          const rows = Object.entries(data)
+            .filter(([_, v]) => v !== null && v !== undefined)
+            .map(([k, v]) => `
+              <tr>
+                <td style="padding:0.35rem 0.75rem;color:#94a3b8;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap">${k}</td>
+                <td style="padding:0.35rem 0.75rem;color:#f1f5f9;font-size:0.85rem;word-break:break-all">${v}</td>
+              </tr>`).join('');
+          res.innerHTML = `
+            <div style="margin-bottom:0.75rem;font-weight:600;font-size:0.95rem">✅ Account created successfully!</div>
+            <table style="width:100%;border-collapse:collapse;border:1px solid rgba(74,222,128,0.2);border-radius:0.5rem;overflow:hidden">
+              ${rows}
+            </table>`;
           form.reset();
         } else {
           res.className = 'error';
