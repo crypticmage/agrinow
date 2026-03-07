@@ -9,10 +9,9 @@ from models import Users
 from database.database_space import store_user_keys_in_supabase
 import os
 import base64
-from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.asymmetric import ed25519
-from cryptography.hazmat.primitives import serialization
+# NOTE: cryptography imports are intentionally deferred to inside create_user()
+# to prevent OpenSSL C-level initialization at module load time,
+# which crashes the Cloudflare Workers / Pyodide WASM validation sandbox.
 
 router = APIRouter(
     prefix='/create_user',
@@ -65,6 +64,12 @@ db_dependency = Annotated[Session, Depends(get_db)]
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependency):
+    # Lazy imports — deferred to request time to avoid OpenSSL init crash in Pyodide WASM
+    from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives import serialization
+
     # Safely extract Cloudflare Worker `env` bindings if running in production
     cf_env = req.scope.get("env")
     
