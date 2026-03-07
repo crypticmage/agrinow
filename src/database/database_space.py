@@ -1,8 +1,8 @@
 import os
 import httpx
 
-# === Supabase REST API Configuration ===
-# Works on both local uvicorn AND Cloudflare Workers (pure HTTP, no C-extensions)
+# === Supabase REST API Configuration (Key Vault — DB2) ===
+# Credentials loaded from .env locally or Render environment variables in production
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://wufbwretjlxjinqghwbl.supabase.co")
 SUPABASE_SERVICE_KEY = os.getenv(
     "SUPABASE_SERVICE_KEY",

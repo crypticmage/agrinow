@@ -9,9 +9,11 @@ from models import Users
 from database.database_space import store_user_keys_in_supabase
 import os
 import base64
-# NOTE: cryptography imports are intentionally deferred to inside create_user()
-# to prevent OpenSSL C-level initialization at module load time,
-# which crashes the Cloudflare Workers / Pyodide WASM validation sandbox.
+from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
+
 
 router = APIRouter(
     prefix='/create_user',
@@ -64,30 +66,7 @@ db_dependency = Annotated[Session, Depends(get_db)]
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependency):
-    # Lazy imports — deferred to request time to avoid OpenSSL init crash in Pyodide WASM
-    from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from cryptography.hazmat.primitives.asymmetric import ed25519
-    from cryptography.hazmat.primitives import serialization
-
-    # Safely extract Cloudflare Worker `env` bindings if running in production
-    cf_env = req.scope.get("env")
-    
-    async def get_secret(key: str, default: str = None) -> str:
-        if cf_env and hasattr(cf_env, key):
-            secret_binding = getattr(cf_env, key)
-            # Cloudflare Secrets Store binding — has an async .get() method
-            if callable(getattr(secret_binding, "get", None)):
-                value = await secret_binding.get()
-                if value:
-                    return value
-            # Standard Wrangler Secret — plain string attribute directly
-            elif isinstance(secret_binding, str):
-                return secret_binding
-        # Fallback to local .env / OS environment
-        return os.getenv(key, default)
-
-    # FIX #6 — Duplicate user check BEFORE any crypto to prevent CPU abuse
+    # Duplicate user check BEFORE any crypto to prevent CPU abuse
     try:
         existing_user = db.query(Users).filter(
             (Users.username == user_req.username) | (Users.email == user_req.email)
@@ -95,7 +74,7 @@ async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependen
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"[D1 DB Error] Failed to query users table: {e}"
+            detail=f"[DB Error] Failed to query users table: {e}"
         )
     if existing_user:
         raise HTTPException(
@@ -103,10 +82,10 @@ async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependen
             detail="A user with this username or email already exists."
         )
 
-    # FIX #4 — Raise hard 500 if critical secrets are missing (no weak fallbacks)
-    argon2_pepper_str = await get_secret("ARGON2_SECRET_PEPPER", None)
-    argon2_ad_str = await get_secret("ARGON2_ASSOCIATED_DATA", None)
-    jwt_secret = await get_secret("JWT_SECRET_KEY", None)
+    # Raise hard 500 if critical secrets are missing (no weak fallbacks)
+    argon2_pepper_str = os.getenv("ARGON2_SECRET_PEPPER")
+    argon2_ad_str = os.getenv("ARGON2_ASSOCIATED_DATA")
+    jwt_secret = os.getenv("JWT_SECRET_KEY")
     if not argon2_pepper_str or not argon2_ad_str or not jwt_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -158,7 +137,7 @@ async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependen
         b64_encrypted_private_key = base64.b64encode(encrypted_private_key).decode('utf-8')
         b64_nonce = base64.b64encode(nonce).decode('utf-8')
 
-        # 4. Storage Logic — Store Public Key and user metadata in D1
+        # 4. Storage Logic — Store Public Key and user metadata in PostgreSQL (Render)
         user_dict = user_req.model_dump(exclude={'password'})
         user_model = Users(**user_dict)
         user_model.public_key = b64_public_key
@@ -169,8 +148,8 @@ async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependen
         try:
             db.flush()  # Flush to get the auto-increment user ID without committing yet
 
-            # Store Encrypted Private Key blob and nonce in Supabase (DB2)
-            # If this fails, we rollback the D1 transaction below to prevent an orphaned user row
+            # Store Encrypted Private Key and nonce in Supabase (key vault)
+            # If this fails, rollback the primary DB transaction — no orphaned user rows
             await store_user_keys_in_supabase(
                 user_id=user_model.id,
                 encrypted_private_key=b64_encrypted_private_key,
