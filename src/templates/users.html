@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agrinow — Users</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2d1f 100%);
+            color: #f1f5f9;
+            padding: 2rem;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #4ade80;
+        }
+
+        .logo svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-badge {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            border-radius: 999px;
+            padding: 0.35rem 0.9rem;
+            font-size: 0.8rem;
+            color: #4ade80;
+            font-weight: 500;
+        }
+
+        .btn-logout {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.25);
+            color: #f87171;
+            border-radius: 0.5rem;
+            padding: 0.35rem 0.8rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: rgba(248, 113, 113, 0.2);
+        }
+
+        /* ── Header row ── */
+        .header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .subtitle {
+            font-size: 0.82rem;
+            color: #64748b;
+            margin-top: 0.2rem;
+        }
+
+        .btn-add {
+            background: linear-gradient(135deg, #16a34a, #4ade80);
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border: none;
+            border-radius: 0.6rem;
+            padding: 0.55rem 1.1rem;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+            transition: opacity 0.2s, transform 0.15s;
+            display: inline-block;
+        }
+
+        .btn-add:hover {
+            opacity: 0.88;
+            transform: translateY(-1px);
+        }
+
+        /* ── Alert ── */
+        #alert {
+            display: none;
+            padding: 0.9rem 1.2rem;
+            border-radius: 0.7rem;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+        }
+
+        #alert.error {
+            display: block;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #f87171;
+        }
+
+        /* ── Table card ── */
+        .card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 1.25rem;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        }
+
+        /* ── Search bar ── */
+        .search-bar {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .search-bar input {
+            width: 100%;
+            max-width: 320px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.85rem;
+            font-size: 0.875rem;
+            color: #f1f5f9;
+            font-family: inherit;
+        }
+
+        .search-bar input::placeholder {
+            color: #475569;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: #4ade80;
+        }
+
+        /* ── Table ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: #64748b;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        tbody tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: background 0.15s;
+        }
+
+        tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        td {
+            padding: 0.8rem 1rem;
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            white-space: nowrap;
+        }
+
+        td.name {
+            color: #f1f5f9;
+            font-weight: 500;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .badge-active {
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
+        }
+
+        .badge-inactive {
+            background: rgba(248, 113, 113, 0.15);
+            color: #f87171;
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.35rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+        }
+
+        /* ── Skeleton loader ── */
+        .skeleton-row td {
+            padding: 0.9rem 1rem;
+        }
+
+        .skel {
+            height: 0.75rem;
+            border-radius: 0.4rem;
+            background: rgba(255, 255, 255, 0.07);
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .empty {
+            text-align: center;
+            padding: 3rem;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+            </svg>
+            Agrinow
+        </div>
+        <div class="nav-right">
+            <span class="user-badge" id="userBadge">—</span>
+            <button class="btn-logout" id="logoutBtn">Logout</button>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <div class="header-row">
+        <div>
+            <h1>All Users</h1>
+            <p class="subtitle" id="countLabel">Loading…</p>
+        </div>
+        <a href="/register" class="btn-add">＋ Add User</a>
+    </div>
+
+    <!-- Error alert -->
+    <div id="alert"></div>
+
+    <!-- Table card -->
+    <div class="card">
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search by name, username, email, role…" />
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Hire Date</th>
+                    <th>Emp Type</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- skeleton rows -->
+                <tr class="skeleton-row">
+                    <td>
+                        <div class="skel" style="width:2rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:8rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:7rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:12rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:5rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:5rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:7rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:6rem"></div>
+                    </td>
+                </tr>
+                <tr class="skeleton-row">
+                    <td>
+                        <div class="skel" style="width:2rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:9rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:6rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:13rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:4rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:5rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:7rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:7rem"></div>
+                    </td>
+                </tr>
+                <tr class="skeleton-row">
+                    <td>
+                        <div class="skel" style="width:2rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:7rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:8rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:11rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:6rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:5rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:7rem"></div>
+                    </td>
+                    <td>
+                        <div class="skel" style="width:5rem"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('agrinow_token');
+        const username = localStorage.getItem('agrinow_username');
+        const role = localStorage.getItem('agrinow_role');
+
+        // Redirect to login if no token
+        if (!token) { window.location.href = '/login'; }
+
+        document.getElementById('userBadge').textContent =
+            username ? `${username} · ${role}` : '—';
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('agrinow_token');
+            localStorage.removeItem('agrinow_username');
+            localStorage.removeItem('agrinow_role');
+            window.location.href = '/login';
+        });
+
+        let allUsers = [];
+
+        async function loadUsers() {
+            const alert = document.getElementById('alert');
+            const body = document.getElementById('tableBody');
+            const counter = document.getElementById('countLabel');
+            try {
+                const resp = await fetch('/users/?limit=200', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (resp.status === 401) {
+                    localStorage.removeItem('agrinow_token');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || resp.statusText);
+                }
+
+                allUsers = await resp.json();
+                renderTable(allUsers);
+                counter.textContent = `${allUsers.length} user${allUsers.length !== 1 ? 's' : ''} registered`;
+            } catch (e) {
+                body.innerHTML = `<tr><td colspan="8" class="empty">Failed to load users.</td></tr>`;
+                alert.className = 'error';
+                alert.textContent = `❌ ${e.message}`;
+                counter.textContent = '';
+            }
+        }
+
+        function renderTable(users) {
+            const body = document.getElementById('tableBody');
+            if (!users.length) {
+                body.innerHTML = `<tr><td colspan="8" class="empty">No users found.</td></tr>`;
+                return;
+            }
+            body.innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td class="name">${u.first_name} ${u.last_name}</td>
+          <td>${u.username}</td>
+          <td>${u.email}</td>
+          <td><span class="role-badge">${u.role}</span></td>
+          <td><span class="badge ${u.is_active ? 'badge-active' : 'badge-inactive'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
+          <td>${u.hire_date ?? '—'}</td>
+          <td>${u.emp_type ?? '—'}</td>
+        </tr>`).join('');
+        }
+
+        // Live search / filter
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const q = e.target.value.toLowerCase();
+            const filtered = allUsers.filter(u =>
+                `${u.first_name} ${u.last_name} ${u.username} ${u.email} ${u.role}`.toLowerCase().includes(q)
+            );
+            renderTable(filtered);
+        });
+
+        loadUsers();
+    </script>
+</body>
+
+</html>

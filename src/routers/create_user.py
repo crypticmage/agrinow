@@ -13,11 +13,12 @@ from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
-
+from dependencies import get_current_user
+from pydantic.networks import EmailStr
 
 router = APIRouter(
     prefix='/create_user',
-    tags=['user']
+    tags=['User Management']
 )
 
 # JWT configuration (Will dynamically pull from Request Env during runtime too!)
@@ -31,41 +32,71 @@ def get_db():
         db.close()
 
 class CreateUserRequest(BaseModel):
-    username: str
-    email: str
-    phone: Optional[str] = None
-    first_name: str
-    last_name: str
-    password: str
-    language: str
-    role: str
-    manager_id: Optional[int] = None
-    hire_date: date
-    relive_date: Optional[date] = None
-    emp_type: Optional[str] = None
+    """
+    Payload for registering a new Agrinow user.
+    A password is required but is never stored — it is stretched into a master key via Argon2id.
+    """
+    username:   str            = Field(..., description="Unique username.", examples=["john_doe"])
+    email:      EmailStr            = Field(..., description="Unique email address. Used as the Argon2id salt.", examples=["john@example.com"])
+    phone:      Optional[str]  = Field(None, description="Optional phone number.", examples=["+91 98765 43210"])
+    first_name: str            = Field(..., description="User's first name.", examples=["John"])
+    last_name:  str            = Field(..., description="User's last name.", examples=["Doe"])
+    password:   str            = Field(..., description="Plaintext password. Stretched via Argon2id; never stored.", examples=["MySecureP@ssw0rd"])
+    language:   str            = Field(..., description="Preferred language code (e.g. 'en', 'hi', 'kn').", examples=["en"])
+    role:       str            = Field(..., description="User role: admin | manager | farmer | agent | analyst.", examples=["farmer"])
+    manager_id: Optional[int]  = Field(None, description="ID of the user's direct manager, if any.", examples=[5])
+    hire_date:  date           = Field(..., description="Date the user was hired (YYYY-MM-DD).", examples=["2024-01-15"])
+    relive_date: Optional[date]= Field(None, description="Date the user was relieved. If set, account is marked inactive.", examples=["2025-06-30"])
+    emp_type:   Optional[str]  = Field(None, description="Employment type: full_time | part_time | contract | intern.", examples=["full_time"])
 
 class UserResponse(BaseModel):
-    id: int
-    username: str
-    email: str
-    phone: Optional[str] = None
-    first_name: str
-    last_name: str
-    language: str
-    role: str
-    manager_id: Optional[int] = None
-    is_active: Optional[bool] = None
-    hire_date: date
-    relive_date: Optional[date] = None
-    emp_type: Optional[str] = None
-    created_dt: date
+    """
+    Public user profile returned after successful registration.
+    Sensitive fields (password, private key, master key) are excluded.
+    """
+    id:          int           = Field(description="Auto-assigned user ID.")
+    username:    str           = Field(description="Unique username.")
+    email:       EmailStr      = Field(description="Registered email address.")
+    phone:       Optional[str] = Field(None, description="Phone number, if provided.")
+    first_name:  str           = Field(description="First name.")
+    last_name:   str           = Field(description="Last name.")
+    language:    str           = Field(description="Preferred language code.")
+    role:        str           = Field(description="Assigned role.")
+    manager_id:  Optional[int] = Field(None, description="Manager's user ID, if set.")
+    is_active:   Optional[bool]= Field(None, description="True if the user has no relieve date.")
+    hire_date:   date          = Field(description="Hire date.")
+    relive_date: Optional[date]= Field(None, description="Relieve date, if set.")
+    emp_type:    Optional[str] = Field(None, description="Employment type.")
+    created_dt:  date          = Field(description="UTC date the account was created.")
 
     model_config = ConfigDict(from_attributes=True)
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
-async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependency):
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=UserResponse,
+    summary="Register a new user",
+    description=(
+        "Creates a new Agrinow user with a zero-knowledge key scheme:\n\n"
+        "1. Check for duplicate username/email.\n"
+        "2. Derive a 32-byte **master key** from the password using Argon2id "
+        "(`salt=email`, `secret=ARGON2_SECRET_PEPPER`, `ad=ARGON2_ASSOCIATED_DATA`).\n"
+        "3. Generate an **Ed25519 key pair** (private + public).\n"
+        "4. **AES-GCM encrypt** the private key with the master key.\n"
+        "5. Store the **public key** + user metadata in the primary PostgreSQL database.\n"
+        "6. Store the **encrypted private key + nonce** in the Supabase key vault.\n"
+        "7. Return the created user profile (no sensitive data).\n\n"
+        "The password and private key are wiped from memory in a `finally` block."
+    ),
+    responses={
+        201: {"description": "User created successfully."},
+        409: {"description": "A user with this username or email already exists."},
+        500: {"description": "Server misconfiguration or key vault storage error."},
+    }
+)
+async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependency, current_user: dict = Depends(get_current_user)):
     # Duplicate user check BEFORE any crypto to prevent CPU abuse
     try:
         existing_user = db.query(Users).filter(
