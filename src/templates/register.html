@@ -299,6 +299,10 @@
   </div>
 
   <script>
+    // Redirect to login if no token
+    const token = localStorage.getItem('agrinow_token');
+    if (!token) { window.location.href = '/login'; }
+
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('submitBtn');
@@ -328,10 +332,21 @@
       try {
         const response = await fetch('/create_user/', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify(body)
         });
         const data = await response.json();
+
+        if (response.status === 401) {
+          // Token expired — send back to login
+          localStorage.removeItem('agrinow_token');
+          window.location.href = '/login';
+          return;
+        }
+
         if (response.ok) {
           res.className = 'success';
           const rows = Object.entries(data)
@@ -345,7 +360,10 @@
             <div style="margin-bottom:0.75rem;font-weight:600;font-size:0.95rem">✅ Account created successfully!</div>
             <table style="width:100%;border-collapse:collapse;border:1px solid rgba(74,222,128,0.2);border-radius:0.5rem;overflow:hidden">
               ${rows}
-            </table>`;
+            </table>
+            <div style="margin-top:0.9rem">
+              <a href="/users-page" style="color:#4ade80;font-size:0.85rem;text-decoration:none;font-weight:500">← Back to Users</a>
+            </div>`;
           form.reset();
         } else {
           res.className = 'error';

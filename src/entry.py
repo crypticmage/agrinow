@@ -1,16 +1,31 @@
+import os
+from dotenv import load_dotenv
+
+# MUST be loaded before any other imports that call os.getenv() at module level
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from database.database import engine
 import models
-from routers import create_user
-import os
-from dotenv import load_dotenv
+from routers import create_user, auth, users
 
-# Load .env file for local development
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
-
-app = FastAPI(title="Agrinow API", version="1.0.0")
+app = FastAPI(
+    title="Agrinow API",
+    version="1.0.0",
+    description=(
+        "## Agrinow — Agricultural Operations API\n\n"
+        "Manages users, authentication, and operational data for the Agrinow platform.\n\n"
+        "### Security Model\n"
+        "Agrinow uses a **zero-knowledge key scheme**:\n"
+        "- Passwords are never stored. A 32-byte master key is derived via **Argon2id** (`salt=email`, `secret=server pepper`).\n"
+        "- Each user has an **Ed25519 key pair**. The private key is AES-GCM encrypted with the master key and stored in Supabase.\n"
+        "- Login re-derives the master key and decrypts the private key — a successful decryption proves the password is correct."
+    ),
+    contact={"name": "Agrinow Engineering"},
+    license_info={"name": "Proprietary"},
+)
 
 # Templates for the registration form
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
@@ -18,13 +33,21 @@ templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "t
 # Create all DB tables if they don't exist
 models.Base.metadata.create_all(bind=engine)
 
-@app.get("/")
+@app.get("/", summary="Health check", description="Returns a simple liveness message confirming the API is running.")
 async def root():
     return {"message": "Agrinow API is running 🌾"}
 
-@app.get("/register", response_class=HTMLResponse)
+@app.get("/register", response_class=HTMLResponse, summary="Registration form", description="Serves the HTML user-registration page.", include_in_schema=False)
 async def register_form(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
+
+@app.get("/login", response_class=HTMLResponse, summary="Login form", description="Serves the HTML login page.", include_in_schema=False)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/users-page", response_class=HTMLResponse, summary="Users dashboard", description="Serves the users listing dashboard (requires JWT in localStorage).", include_in_schema=False)
+async def users_page(request: Request):
+    return templates.TemplateResponse("users.html", {"request": request})
 
 @app.get("/debug")
 async def debug_connections():
@@ -66,3 +89,5 @@ async def debug_connections():
     return results
 
 app.include_router(create_user.router)
+app.include_router(auth.router)
+app.include_router(users.router)
