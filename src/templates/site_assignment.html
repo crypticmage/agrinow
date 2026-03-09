@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agrinow — Site Assignment</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2d1f 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: #f1f5f9;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            backdrop-filter: blur(20px);
+            border-radius: 1.5rem;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 0.3rem;
+        }
+
+        .subtitle {
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #94a3b8;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        select,
+        input {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.6rem;
+            padding: 0.65rem 0.9rem;
+            font-size: 0.9rem;
+            color: #f1f5f9;
+            font-family: inherit;
+            transition: border-color 0.2s, background 0.2s;
+            width: 100%;
+        }
+
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: #4ade80;
+            background: rgba(74, 222, 128, 0.06);
+        }
+
+        select option {
+            background: #1e293b;
+            color: #f1f5f9;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.8rem;
+            margin-top: 1rem;
+            background: linear-gradient(135deg, #16a34a, #4ade80);
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border: none;
+            border-radius: 0.7rem;
+            cursor: pointer;
+            letter-spacing: 0.02em;
+            transition: opacity 0.2s, transform 0.15s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #response {
+            margin-top: 1.2rem;
+            padding: 1rem 1.2rem;
+            border-radius: 0.7rem;
+            font-size: 0.875rem;
+            display: none;
+            word-break: break-all;
+        }
+
+        #response.success {
+            display: block;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+        }
+
+        #response.error {
+            display: block;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #f87171;
+        }
+
+        .nav-links {
+            margin-top: 1.5rem;
+            text-align: center;
+        }
+
+        .nav-links a {
+            color: #4ade80;
+            font-size: 0.85rem;
+            text-decoration: none;
+            font-weight: 500;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="card">
+        <div class="card-header">
+            <h1>Site Assignment</h1>
+            <p class="subtitle">Assign a user to an operational site</p>
+        </div>
+
+        <!-- CREATE SITE FORM -->
+        <form id="createSiteForm"
+            style="margin-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1.5rem;">
+            <p
+                style="font-size:0.85rem; color:#4ade80; font-weight:600; margin-bottom: 0.5rem; text-transform:uppercase;">
+                Quick Add Site</p>
+            <div class="field">
+                <label for="site_name">Site Name</label>
+                <input type="text" id="site_name" name="site_name" required placeholder="e.g. North Farm" />
+            </div>
+            <div class="field">
+                <label for="site_description">Description</label>
+                <input type="text" id="site_description" name="site_description" required
+                    placeholder="Main corn fields" />
+            </div>
+            <button type="submit" class="btn" style="background: rgba(255,255,255,0.1); color: white;">Add Site</button>
+        </form>
+
+        <!-- ASSIGNMENT FORM -->
+        <form id="assignmentForm">
+            <p
+                style="font-size:0.85rem; color:#4ade80; font-weight:600; margin-bottom: 0.5rem; text-transform:uppercase;">
+                Assign User</p>
+            <div class="field">
+                <label for="user_id">User</label>
+                <select id="user_id" name="user_id" required>
+                    <option value="" disabled selected>Select a user</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="site_id">Site</label>
+                <select id="site_id" name="site_id" required>
+                    <option value="" disabled selected>Select a site</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="assigned_date">Assigned Date</label>
+                <input type="date" id="assigned_date" name="assigned_date" required />
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">Assign to Site</button>
+        </form>
+
+        <div id="response"></div>
+
+        <div class="nav-links">
+            <a href="/users-page">← Back to Users</a>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('agrinow_token');
+        if (!token) { window.location.href = '/login'; }
+
+        // Set today as default date
+        document.getElementById('assigned_date').valueAsDate = new Date();
+
+        async function loadDropdowns() {
+            try {
+                // Load Users
+                const userResp = await fetch('/users/manager_dropdown', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (userResp.ok) {
+                    const users = await userResp.json();
+                    const userSelect = document.getElementById('user_id');
+                    users.forEach(u => {
+                        const opt = document.createElement('option');
+                        opt.value = u.id;
+                        opt.textContent = `${u.first_name} ${u.last_name} (@${u.username})`;
+                        userSelect.appendChild(opt);
+                    });
+                }
+
+                // Load Sites
+                const siteResp = await fetch('/sites/', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (siteResp.ok) {
+                    const sites = await siteResp.json();
+                    const siteSelect = document.getElementById('site_id');
+                    // Clear existing options except first
+                    while (siteSelect.options.length > 1) { siteSelect.remove(1); }
+                    sites.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.id;
+                        opt.textContent = s.site_name;
+                        siteSelect.appendChild(opt);
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        loadDropdowns();
+
+        // Create Site Submit
+        document.getElementById('createSiteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = document.getElementById('response');
+            res.style.display = 'none';
+
+            const body = {
+                site_name: document.getElementById('site_name').value,
+                site_description: document.getElementById('site_description').value,
+                created_date: new Date().toISOString().split('T')[0]
+            };
+
+            try {
+                const response = await fetch('/sites/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    res.className = 'success';
+                    res.textContent = '✅ Site created successfully!';
+                    document.getElementById('createSiteForm').reset();
+                    loadDropdowns(); // Refresh site list
+                } else {
+                    const data = await response.json();
+                    res.className = 'error';
+                    res.textContent = `❌ ${data.detail || 'Creation failed'}`;
+                }
+            } catch (err) {
+                res.className = 'error';
+                res.textContent = `❌ Network error`;
+            }
+        });
+
+        // Assign User Submit
+        document.getElementById('assignmentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            const res = document.getElementById('response');
+            btn.disabled = true;
+            btn.textContent = 'Assigning...';
+            res.style.display = 'none';
+
+            const form = e.target;
+            const body = {
+                user_id: parseInt(form.user_id.value),
+                site_id: parseInt(form.site_id.value),
+                assigned_date: form.assigned_date.value
+            };
+
+            try {
+                const response = await fetch('/sites/assign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    res.className = 'success';
+                    res.textContent = `✅ Successfully assigned user to site! Assignment ID: ${data.id}`;
+                } else {
+                    res.className = 'error';
+                    res.textContent = `❌ Error: ${data.detail || JSON.stringify(data)}`;
+                }
+            } catch (err) {
+                res.className = 'error';
+                res.textContent = `❌ Network error`;
+            }
+            btn.disabled = false;
+            btn.textContent = 'Assign to Site';
+        });
+    </script>
+</body>
+
+</html>

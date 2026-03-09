@@ -4,14 +4,26 @@ from dotenv import load_dotenv
 # MUST be loaded before any other imports that call os.getenv() at module level
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi.security import APIKeyHeader
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from database.database import engine
 import models
-from routers import create_user, auth, users
+from routers import create_user, auth, users, sites
+
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=True)
+
+def verify_api_key(api_key: str = Depends(api_key_header)):
+    expected_key = os.getenv("API_KEY")
+    if not expected_key or api_key != expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Could not validate API Key"
+        )
 
 app = FastAPI(
+    # dependencies=[Depends(verify_api_key)], # For now we will stop this API Key thing (Full admele madona)
     title="Agrinow API",
     version="1.0.0",
     description=(
@@ -48,6 +60,10 @@ async def login_page(request: Request):
 @app.get("/users-page", response_class=HTMLResponse, summary="Users dashboard", description="Serves the users listing dashboard (requires JWT in localStorage).", include_in_schema=False)
 async def users_page(request: Request):
     return templates.TemplateResponse("users.html", {"request": request})
+
+@app.get("/assign-site", response_class=HTMLResponse, summary="Assign Site UI", include_in_schema=False)
+async def assign_site_page(request: Request):
+    return templates.TemplateResponse("site_assignment.html", {"request": request})
 
 @app.get("/debug")
 async def debug_connections():
@@ -91,3 +107,4 @@ async def debug_connections():
 app.include_router(create_user.router)
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(sites.router)

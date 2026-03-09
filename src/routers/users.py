@@ -44,6 +44,28 @@ class UserSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserDropdown(BaseModel):
+    """Minimal user payload for dropdown menus (active users only)."""
+    id:         int = Field(description="Auto-assigned user ID.")
+    username:   str = Field(description="Unique username.")
+    first_name: str = Field(description="First name.")
+    last_name:  str = Field(description="Last name.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrgNode(BaseModel):
+    """Recursive organizational chart node."""
+    id: int
+    username: str
+    first_name: str
+    last_name: str
+    role: str
+    subordinates: List['OrgNode'] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── GET /users/ ───────────────────────────────────────────────────────────────
 
 @router.get(
@@ -79,6 +101,28 @@ def get_all_users(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No users found."
         )
+    return users
+
+
+# ── GET /users/manager_dropdown ───────────────────────────────────────────────────────
+@router.get(
+    "/manager_dropdown",
+    response_model=List[UserDropdown],
+    status_code=status.HTTP_200_OK,
+    summary="List active users for manager dropdown options",
+    description=(
+        "Returns a lightweight list of active users intended for frontend dropdowns "
+        "when selecting a manager. Does not paginate the results."
+    ),
+)
+def get_manager_dropdown(
+    db: db_dependency,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Fetch all active users for dropdowns.
+    """
+    users = db.query(Users).filter(Users.is_active == True).all()
     return users
 
 
