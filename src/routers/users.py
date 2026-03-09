@@ -148,3 +148,66 @@ def get_user(user_id: int, db: db_dependency, current_user: dict = Depends(get_c
             detail=f"User with id {user_id} not found."
         )
     return user
+
+
+# ── GET /users/org ────────────────────────────────────────────────────────────
+
+@router.get(
+    "/org/chart",
+    response_model=OrgNode,
+    status_code=status.HTTP_200_OK,
+    summary="Get user organizational chart",
+    description=(
+        "Returns the organizational chart starting from a specific user. "
+        "If neither username nor email is provided, it defaults to the current user."
+    ),
+    responses={
+        200: {"description": "Organizational chart returned successfully."},
+        401: {"description": "Missing or invalid JWT token."},
+        404: {"description": "User not found in the database."},
+    }
+)
+def get_user_org_chart(
+    db: db_dependency,
+    username: Optional[str] = None,
+    email: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    if username:
+        root_user = db.query(Users).filter(Users.username == username).first()
+    elif email:
+        root_user = db.query(Users).filter(Users.email == email).first()
+    else:
+        root_user = db.query(Users).filter(Users.id == int(current_user.get("sub"))).first()
+
+    if not root_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
+
+    # Fetch all active users to build the tree efficiently in memory
+    # instead of hitting the database for each node's children.
+    all_users = db.query(Users).filter(Users.is_active == True).all()
+    
+    children_map = {}
+    for u in all_users:
+        if u.manager_id not in children_map:
+            children_map[u.manager_id] = []
+        children_map[u.manager_id].append(u)
+
+    def build_node(user):
+        node = OrgNode(
+            id=user.id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            role=user.role,
+            subordinates=[]
+        )
+        children = children_map.get(user.id, [])
+        for child in children:
+            node.subordinates.append(build_node(child))
+        return node
+
+    return build_node(root_user)

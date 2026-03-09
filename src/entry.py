@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from database.database import engine
 import models
 from routers import create_user, auth, users, sites
@@ -37,6 +38,15 @@ app = FastAPI(
     ),
     contact={"name": "Agrinow Engineering"},
     license_info={"name": "Proprietary"},
+)
+
+# Configure CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],  
+    allow_headers=["*"],  
 )
 
 # Templates for the registration form
