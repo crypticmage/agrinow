@@ -276,8 +276,11 @@
         </div>
 
         <div class="field">
-          <label for="manager_id">Manager ID</label>
-          <input type="number" id="manager_id" name="manager_id" placeholder="e.g. 5" />
+          <label for="manager_id">Manager</label>
+          <select id="manager_id" name="manager_id">
+            <option value="" selected>No Manager (None)</option>
+            <!-- Dynamically populated options -->
+          </select>
         </div>
 
         <div class="field">
@@ -302,6 +305,28 @@
     // Redirect to login if no token
     const token = localStorage.getItem('agrinow_token');
     if (!token) { window.location.href = '/login'; }
+
+    // Populate Manager Dropdown on load
+    async function loadManagers() {
+      const dropdown = document.getElementById('manager_id');
+      try {
+        const resp = await fetch('/users/manager_dropdown', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (resp.ok) {
+          const users = await resp.json();
+          users.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = `${u.first_name} ${u.last_name} (@${u.username})`;
+            dropdown.appendChild(opt);
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch manager list:", err);
+      }
+    }
+    loadManagers();
 
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
