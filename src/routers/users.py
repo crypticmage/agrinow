@@ -66,6 +66,15 @@ class OrgNode(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserUpdateRequest(BaseModel):
+    """Payload to update an existing user."""
+    role: Optional[str] = Field(None, description="New role for the user.")
+    phone: Optional[str] = Field(None, description="New phone number.")
+    is_active: Optional[bool] = Field(None, description="Set active status.")
+    relive_date: Optional[date] = Field(None, description="Set the relieve date.")
+    manager_id: Optional[int] = Field(None, description="Set the new manager.")
+
+
 # ── GET /users/ ───────────────────────────────────────────────────────────────
 
 @router.get(
@@ -181,6 +190,73 @@ def get_user(user_id: int, db: db_dependency, current_user: dict = Depends(get_c
             detail=f"User with id {user_id} not found."
         )
     return user
+
+
+# ── PUT /users/{user_id} ──────────────────────────────────────────────────────
+
+@router.put(
+    "/{user_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Update a user's record",
+    description="Updates specific fields for a user like role, phone, is_active, and relive_date."
+)
+def update_user(
+    user_id: int,
+    update_data: UserUpdateRequest,
+    db: db_dependency,
+    current_user: dict = Depends(get_current_user)
+):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id {user_id} not found."
+        )
+    
+    if update_data.role is not None:
+        user.role = update_data.role
+    if update_data.phone is not None:
+        user.phone = update_data.phone
+    if update_data.manager_id is not None:
+        user.manager_id = update_data.manager_id
+        
+    # Auto-calculate active status based on relive date if it is updated
+    if update_data.relive_date is not None:
+        user.relive_date = update_data.relive_date
+        if user.relive_date <= date.today():
+            user.is_active = False
+        else:
+            user.is_active = True
+    elif update_data.is_active is not None:
+        user.is_active = update_data.is_active
+        
+    db.commit()
+    return {"message": "User updated successfully"}
+
+
+# ── DELETE /users/{user_id} ───────────────────────────────────────────────────
+
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a user",
+    description="Completely removes a user from the primary database."
+)
+def delete_user(
+    user_id: int,
+    db: db_dependency,
+    current_user: dict = Depends(get_current_user)
+):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id {user_id} not found."
+        )
+    
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted successfully"}
 
 
 # ── GET /users/org ────────────────────────────────────────────────────────────
