@@ -47,3 +47,10 @@ class SiteComments(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     comment = Column(Text)
     timestamp = Column(DateTime, server_default=func.now())
+
+class UserLogs(Base):
+    """Stores user login/logout activity"""
+    __tablename__ = "user_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    timestamp = Column(DateTime, server_default=func.now())

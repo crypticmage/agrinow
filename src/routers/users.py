@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from starlette import status
 from database.database import SessionLocal
 from models import Users
-from datetime import date
+from datetime import date, datetime
 from dependencies import get_current_user
 router = APIRouter(
     prefix='/users',
@@ -125,6 +125,39 @@ def get_manager_dropdown(
     users = db.query(Users).filter(Users.is_active == True).all()
     return users
 
+# ── GET /users/logs ────────────────────────────────────────────────────────────
+
+class UserLogResponse(BaseModel):
+    id: int
+    user_id: int
+    username: str
+    timestamp: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+@router.get(
+    "/logs",
+    response_model=List[UserLogResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get all user login activity logs",
+)
+def get_user_logs(
+    db: db_dependency,
+    limit: int = 100,
+    current_user: dict = Depends(get_current_user),
+):
+    from models import UserLogs
+    logs = db.query(UserLogs, Users.username).join(Users, UserLogs.user_id == Users.id).order_by(UserLogs.timestamp.desc()).limit(limit).all()
+    
+    results = []
+    for log, username in logs:
+        results.append({
+            "id": log.id,
+            "user_id": log.user_id,
+            "username": username,
+            "timestamp": log.timestamp
+        })
+    return results
 
 # ── GET /users/{user_id} ──────────────────────────────────────────────────────
 

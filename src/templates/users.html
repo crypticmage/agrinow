@@ -299,7 +299,15 @@
             <h1>All Users</h1>
             <p class="subtitle" id="countLabel">Loading…</p>
         </div>
-        <a href="/register" class="btn-add">＋ Add User</a>
+        <div>
+            <a href="/user-logs" class="btn-add" id="logsBtn"
+                style="background: rgba(255, 255, 255, 0.1); color: #f8fafc; margin-right: 0.5rem; transition: background 0.2s; display: none;">User
+                Logs</a>
+            <a href="/org-chart" class="btn-add"
+                style="background: rgba(255, 255, 255, 0.1); color: #f8fafc; margin-right: 0.5rem; transition: background 0.2s;">View
+                Org Chart</a>
+            <a href="/register" class="btn-add">＋ Add User</a>
+        </div>
     </div>
 
     <!-- Error alert -->
@@ -418,7 +426,20 @@
         document.getElementById('userBadge').textContent =
             username ? `${username} · ${role}` : '—';
 
-        document.getElementById('logoutBtn').addEventListener('click', () => {
+        if (role === 'manager' || role === 'admin') {
+            document.getElementById('logsBtn').style.display = 'inline-block';
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch('/auth/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (e) {
+                console.error("Logout API failed", e);
+            }
+
             localStorage.removeItem('agrinow_token');
             localStorage.removeItem('agrinow_username');
             localStorage.removeItem('agrinow_role');

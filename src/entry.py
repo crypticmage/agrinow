@@ -80,6 +80,14 @@ async def users_page(request: Request):
 async def assign_site_page(request: Request):
     return templates.TemplateResponse("site_assignment.html", {"request": request})
 
+@app.get("/org-chart", response_class=HTMLResponse, summary="Organization Chart UI", include_in_schema=False)
+async def org_chart_page(request: Request):
+    return templates.TemplateResponse("org_chart.html", {"request": request})
+
+@app.get("/user-logs", response_class=HTMLResponse, summary="Users Logs UI", include_in_schema=False)
+async def user_logs_page(request: Request):
+    return templates.TemplateResponse("user_logs.html", {"request": request})
+
 @app.get("/debug")
 async def debug_connections():
     """Tests PostgreSQL and Supabase connections independently."""
@@ -94,7 +102,12 @@ async def debug_connections():
         db = SessionLocal()
         db.execute(sqlalchemy.text("SELECT 1"))
         db.close()
-        results["primary_db"] = {"status": "ok", "message": "Connected successfully"}
+        
+        # Also let's check what tables are in the DB
+        inspector = sqlalchemy.inspect(engine)
+        tables = inspector.get_table_names()
+        
+        results["primary_db"] = {"status": "ok", "message": "Connected successfully", "tables": tables}
     except Exception as e:
         results["primary_db"] = {"status": "error", "message": str(e)}
 

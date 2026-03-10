@@ -182,6 +182,14 @@ async def login(login_req: LoginRequest, db: db_dependency):
         }
         token = jwt.encode(payload, jwt_secret, algorithm=ALGORITHM)
 
+        try: # This will add the login to the user_logs table
+            from models import UserLogs
+            new_log = UserLogs(user_id=user.id)
+            db.add(new_log)
+            db.commit()
+        except:
+            db.rollback()
+
         return TokenResponse(
             access_token=token,
             token_type="bearer",
