@@ -16,6 +16,8 @@ from cryptography.hazmat.primitives import serialization
 from dependencies import get_current_user
 from pydantic.networks import EmailStr
 
+from tools.gmail import GmailSender # send mail
+
 router = APIRouter(
     prefix='/create_user',
     tags=['User Management']
@@ -201,6 +203,15 @@ async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependen
 
             # Only commit D1 if Supabase insert succeeded — both DBs are now in sync
             db.commit()
+            gmail_client = GmailSender()
+            # 3. Call send_email
+            gmail_client.send_email(
+                sender="crypticmage00@gmail.com",
+                to=user_req.email,
+                name=user_req.first_name + " " + user_req.last_name,
+                role=user_req.role,
+                hire_date=user_req.hire_date
+            )
         except Exception as e:
             db.rollback()  # Undo the D1 flush so no orphaned user row is left behind
             raise HTTPException(
