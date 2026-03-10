@@ -73,6 +73,17 @@ class UserResponse(BaseModel):
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
+
+def role_checker(allowed_roles: list):
+    def check(user: dict = Depends(get_current_user)):
+        if user.get("role") not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Operation not permitted"
+            )
+        return user
+    return check
+
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
@@ -96,7 +107,8 @@ db_dependency = Annotated[Session, Depends(get_db)]
         500: {"description": "Server misconfiguration or key vault storage error."},
     }
 )
-async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependency, current_user: dict = Depends(get_current_user)):
+#current_user: dict = Depends(get_current_user)
+async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependency, current_user = Depends(role_checker(["admin"]))):
     # Duplicate user check BEFORE any crypto to prevent CPU abuse
     try:
         existing_user = db.query(Users).filter(

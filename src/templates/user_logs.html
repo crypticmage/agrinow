@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agrinow — User Logs</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2d1f 100%);
+            color: #f1f5f9;
+            padding: 2rem;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #4ade80;
+            text-decoration: none;
+        }
+
+        .logo svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-badge {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            border-radius: 999px;
+            padding: 0.35rem 0.9rem;
+            font-size: 0.8rem;
+            color: #4ade80;
+            font-weight: 500;
+        }
+
+        .btn-logout {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.25);
+            color: #f87171;
+            border-radius: 0.5rem;
+            padding: 0.35rem 0.8rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: rgba(248, 113, 113, 0.2);
+        }
+
+        /* ── Header row ── */
+        .header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .subtitle {
+            font-size: 0.82rem;
+            color: #64748b;
+            margin-top: 0.2rem;
+        }
+
+        .btn-back {
+            background: rgba(255, 255, 255, 0.1);
+            color: #f8fafc;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border: none;
+            border-radius: 0.6rem;
+            padding: 0.55rem 1.1rem;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ── Alert ── */
+        #alert {
+            display: none;
+            padding: 0.9rem 1.2rem;
+            border-radius: 0.7rem;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+        }
+
+        #alert.error {
+            display: block;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #f87171;
+        }
+
+        /* ── Table card ── */
+        .card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 1.25rem;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        }
+
+        /* ── Table ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: #64748b;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        tbody tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: background 0.15s;
+        }
+
+        tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        td {
+            padding: 0.8rem 1rem;
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            white-space: nowrap;
+        }
+
+        .badge-login {
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.15);
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-logout {
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.15);
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 3rem;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/users-page" class="logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+            </svg>
+            Agrinow
+        </a>
+        <div class="nav-right">
+            <span class="user-badge" id="userBadge">—</span>
+            <button class="btn-logout" id="logoutBtn">Logout</button>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <div class="header-row">
+        <div>
+            <h1>User Activity Logs</h1>
+            <p class="subtitle" id="countLabel">Loading…</p>
+        </div>
+        <a href="/users-page" class="btn-back">← Back to Users</a>
+    </div>
+
+    <!-- Error alert -->
+    <div id="alert"></div>
+
+    <!-- Table card -->
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Log ID</th>
+                    <th>User ID</th>
+                    <th>Username</th>
+                    <th>Timestamp (UTC)</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr>
+                    <td colspan="5" class="empty">Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('agrinow_token');
+        const username = localStorage.getItem('agrinow_username');
+        const role = localStorage.getItem('agrinow_role');
+
+        if (!token) { window.location.href = '/login'; }
+
+        // Ensure Only Managers/Admins can see logs
+        if (role !== 'manager' && role !== 'admin') {
+            document.body.innerHTML = "<h2 style='text-align: center; margin-top: 50px;'>Not Authorized</h2>";
+        }
+
+        document.getElementById('userBadge').textContent =
+            username ? `${username} · ${role}` : '—';
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            // Send API call to logout and then clean localStorage
+            try {
+                await fetch('/auth/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (e) { console.error("Logout API failed", e); }
+
+            localStorage.removeItem('agrinow_token');
+            localStorage.removeItem('agrinow_username');
+            localStorage.removeItem('agrinow_role');
+            window.location.href = '/login';
+        });
+
+        async function loadLogs() {
+            const body = document.getElementById('tableBody');
+            const alert = document.getElementById('alert');
+            const counter = document.getElementById('countLabel');
+            try {
+                const resp = await fetch('/users/logs', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (resp.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || resp.statusText);
+                }
+
+                const logs = await resp.json();
+
+                if (!logs.length) {
+                    body.innerHTML = `<tr><td colspan="4" class="empty">No logs found.</td></tr>`;
+                    counter.textContent = '0 logs';
+                    return;
+                }
+
+                counter.textContent = `Showing latest ${logs.length} logs`;
+
+                body.innerHTML = logs.map(log => {
+                    const d = new Date(log.timestamp);
+                    return `
+                        <tr>
+                            <td>${log.id}</td>
+                            <td>${log.user_id}</td>
+                            <td style="color: #f1f5f9; font-weight: 500;">@${log.username}</td>
+                            <td>${d.toLocaleString()}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (e) {
+                body.innerHTML = `<tr><td colspan="4" class="empty">Failed to load logs.</td></tr>`;
+                alert.className = 'error';
+                alert.textContent = `❌ ${e.message}`;
+            }
+        }
+
+        loadLogs();
+    </script>
+</body>
+
+</html>

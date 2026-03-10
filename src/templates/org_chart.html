@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agrinow — Organization Chart</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2d1f 100%);
+            color: #f1f5f9;
+            padding: 2rem;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #4ade80;
+            text-decoration: none;
+        }
+
+        .logo svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-badge {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            border-radius: 999px;
+            padding: 0.35rem 0.9rem;
+            font-size: 0.8rem;
+            color: #4ade80;
+            font-weight: 500;
+        }
+
+        .btn-logout {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.25);
+            color: #f87171;
+            border-radius: 0.5rem;
+            padding: 0.35rem 0.8rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: rgba(248, 113, 113, 0.2);
+        }
+
+        /* ── Header row ── */
+        .header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .subtitle {
+            font-size: 0.82rem;
+            color: #64748b;
+            margin-top: 0.2rem;
+        }
+
+        .btn-back {
+            background: rgba(255, 255, 255, 0.1);
+            color: #f8fafc;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border: none;
+            border-radius: 0.6rem;
+            padding: 0.55rem 1.1rem;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ── Alert ── */
+        #alert {
+            display: none;
+            padding: 0.9rem 1.2rem;
+            border-radius: 0.7rem;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+        }
+
+        #alert.error {
+            display: block;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #f87171;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 1.25rem;
+            padding: 2rem;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            overflow-x: auto;
+            min-height: 400px;
+        }
+
+        /* ── Form Controls ── */
+        .search-bar {
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            padding-bottom: 1.5rem;
+        }
+
+        .search-bar input {
+            width: 100%;
+            max-width: 300px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 0.6rem 0.85rem;
+            font-size: 0.875rem;
+            color: #f1f5f9;
+            font-family: inherit;
+        }
+
+        .search-bar input::placeholder {
+            color: #64748b;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: #4ade80;
+        }
+
+        .search-bar button {
+            background: linear-gradient(135deg, #16a34a, #4ade80);
+            color: #0f172a;
+            border: none;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            padding: 0.6rem 1.2rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .search-bar button:hover {
+            opacity: 0.9;
+        }
+
+        .search-bar .btn-reset {
+            background: rgba(255, 255, 255, 0.1);
+            color: #f1f5f9;
+        }
+
+        .search-bar .btn-reset:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* ── Org Tree UI ── */
+        .org-tree {
+            display: flex;
+            justify-content: center;
+            width: max-content;
+            margin: 0 auto;
+            min-width: 100%;
+        }
+
+        .org-tree ul {
+            padding-top: 20px;
+            position: relative;
+            transition: all 0.5s;
+            display: flex;
+            justify-content: center;
+            list-style-type: none;
+        }
+
+        .org-tree li {
+            float: left;
+            text-align: center;
+            list-style-type: none;
+            position: relative;
+            padding: 20px 5px 0 5px;
+            transition: all 0.5s;
+        }
+
+        /* Connector lines */
+        .org-tree li::before,
+        .org-tree li::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 50%;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            width: 50%;
+            height: 20px;
+        }
+
+        .org-tree li::after {
+            right: auto;
+            left: 50%;
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Top element doesn't need connectors above */
+        .org-tree li:only-child::after,
+        .org-tree li:only-child::before {
+            display: none;
+        }
+
+        .org-tree li:only-child {
+            padding-top: 0;
+        }
+
+        /* Leftmost and rightmost lines */
+        .org-tree li:first-child::before,
+        .org-tree li:last-child::after {
+            border: 0 none;
+        }
+
+        .org-tree li:last-child::before {
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0 5px 0 0;
+        }
+
+        .org-tree li:first-child::after {
+            border-radius: 5px 0 0 0;
+        }
+
+        .org-tree ul ul::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            width: 0;
+            height: 20px;
+            margin-left: -1px;
+        }
+
+        /* Org Card Element */
+        .org-card {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            text-align: center;
+            min-width: 160px;
+            transition: all 0.2s;
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+
+        .org-card:hover {
+            transform: translateY(-3px);
+            background: rgba(255, 255, 255, 0.12);
+            border-color: #4ade80;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .org-card .name {
+            font-weight: 700;
+            color: #f1f5f9;
+            font-size: 1rem;
+            margin-bottom: 0.2rem;
+            white-space: nowrap;
+        }
+
+        .org-card .username {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-bottom: 0.8rem;
+        }
+
+        .org-card .role {
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            border-radius: 0.35rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .loader {
+            text-align: center;
+            color: #64748b;
+            padding: 3rem 0;
+            font-size: 0.95rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #64748b;
+            padding: 3rem 0;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/users-page" class="logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+            </svg>
+            Agrinow
+        </a>
+        <div class="nav-right">
+            <span class="user-badge" id="userBadge">—</span>
+            <button class="btn-logout" id="logoutBtn">Logout</button>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <div class="header-row">
+        <div>
+            <h1>Organization Chart</h1>
+            <p class="subtitle">Visualize the management hierarchy.</p>
+        </div>
+        <a href="/users-page" class="btn-back">← Back to Users</a>
+    </div>
+
+    <!-- Error alert -->
+    <div id="alert"></div>
+
+    <!-- Main Card -->
+    <div class="card">
+        <div class="search-bar">
+            <input type="text" id="targetUserInput" placeholder="Search by username or email..." />
+            <button id="searchBtn">Fetch Hierarchy</button>
+            <button id="resetBtn" class="btn-reset">View My Org</button>
+        </div>
+
+        <div id="loading" class="loader">Loading organization data...</div>
+        <div id="emptyState" class="empty-state">No organization data found.</div>
+
+        <div class="org-tree" id="orgTreeContainer">
+            <!-- Tree will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('agrinow_token');
+        const username = localStorage.getItem('agrinow_username');
+        const role = localStorage.getItem('agrinow_role');
+
+        if (!token) { window.location.href = '/login'; }
+
+        document.getElementById('userBadge').textContent =
+            username ? `${username} · ${role}` : '—';
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch('/auth/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (e) { console.error("Logout API failed", e); }
+
+            localStorage.removeItem('agrinow_token');
+            localStorage.removeItem('agrinow_username');
+            localStorage.removeItem('agrinow_role');
+            window.location.href = '/login';
+        });
+
+        const alertBox = document.getElementById('alert');
+        const orgTreeContainer = document.getElementById('orgTreeContainer');
+        const loader = document.getElementById('loading');
+        const emptyState = document.getElementById('emptyState');
+        const targetInput = document.getElementById('targetUserInput');
+
+        async function fetchOrgChart(queryUsername = null, queryEmail = null) {
+            alertBox.style.display = 'none';
+            orgTreeContainer.innerHTML = '';
+            loader.style.display = 'block';
+            emptyState.style.display = 'none';
+
+            try {
+                let url = '/users/org/chart';
+                const params = new URLSearchParams();
+                if (queryUsername) params.append('username', queryUsername);
+                if (queryEmail) params.append('email', queryEmail);
+
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+
+                const resp = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (resp.status === 401) {
+                    localStorage.removeItem('agrinow_token');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || resp.statusText);
+                }
+
+                const data = await resp.json();
+                loader.style.display = 'none';
+
+                if (!data) {
+                    emptyState.style.display = 'block';
+                    return;
+                }
+
+                // Build HTML Tree
+                orgTreeContainer.innerHTML = '<ul>' + buildTreeHTML(data) + '</ul>';
+
+            } catch (e) {
+                loader.style.display = 'none';
+                alertBox.className = 'error';
+                alertBox.textContent = `❌ Failed to load org chart: ${e.message}`;
+                alertBox.style.display = 'block';
+            }
+        }
+
+        // Recursive function to build the tree list
+        function buildTreeHTML(node) {
+            if (!node) return '';
+
+            let html = `
+                <li>
+                    <div class="org-card">
+                        <div class="name">${node.first_name || ''} ${node.last_name || ''}</div>
+                        <div class="username">@${node.username}</div>
+                        <div class="role">${node.role}</div>
+                    </div>
+            `;
+
+            if (node.subordinates && node.subordinates.length > 0) {
+                html += '<ul>';
+                for (const sub of node.subordinates) {
+                    html += buildTreeHTML(sub);
+                }
+                html += '</ul>';
+            }
+
+            html += `</li>`;
+
+            return html;
+        }
+
+        // Event Listeners
+        document.getElementById('searchBtn').addEventListener('click', () => {
+            const val = targetInput.value.trim();
+            if (!val) return;
+
+            // basic check if it looks like an email
+            if (val.includes('@')) {
+                fetchOrgChart(null, val);
+            } else {
+                fetchOrgChart(val, null);
+            }
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            targetInput.value = '';
+            fetchOrgChart(); // Load current user's org
+        });
+
+        // Initialize with default query (current logged-in user)
+        fetchOrgChart();
+    </script>
+</body>
+
+</html>
