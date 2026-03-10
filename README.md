@@ -69,7 +69,8 @@ agrinow/
 
 ### Prerequisites
 - Python 3.11+
-- `pip install psycopg2-binary cryptography PyJWT fastapi sqlalchemy uvicorn`
+- Install dependencies from `requirements.txt`
+  - This includes `psycopg2-binary`, `cryptography`, `PyJWT`, `fastapi`, `sqlalchemy`, `uvicorn`, and `google-api-python-client` (for Gmail API).
 
 ### 1. Clone & set up virtual environment
 ```bash
@@ -82,11 +83,18 @@ pip install -e .
 ```
 
 ### 2. Configure `.env`
+Ensure you have all required environment variables set securely. **Never commit this file.**
+
 ```env
+# Standard Auth Secrets
 JWT_SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_hex(32))">
 ARGON2_SECRET_PEPPER=<generate same way>
 ARGON2_ASSOCIATED_DATA=agrinow_auth_v1
 SUPABASE_DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+
+# Google/Gmail API Integration Secrets (JSON Stringified)
+GMAIL_TOKEN_FILE={"token": "..."}
+GMAIL_CLIENT_SECRET_FILE={"web": {"client_id": "...", "client_secret": "..."}}
 ```
 
 ### 3. Run locally
