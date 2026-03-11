@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
 from starlette import status
 from database.database import SessionLocal
+from database.database_space import delete_user_keys_from_supabase
 from models import Users
 from datetime import date, datetime
 from dependencies import get_current_user
@@ -240,9 +241,9 @@ def update_user(
     "/{user_id}",
     status_code=status.HTTP_200_OK,
     summary="Delete a user",
-    description="Completely removes a user from the primary database."
+    description="Completely removes a user from both the primary database and the Supabase API."
 )
-def delete_user(
+async def delete_user(
     user_id: int,
     db: db_dependency,
     current_user: dict = Depends(get_current_user)
@@ -254,9 +255,19 @@ def delete_user(
             detail=f"User with id {user_id} not found."
         )
     
+    # Attempt to delete the encrypted keys from the Supabase Vault first
+    try:
+        await delete_user_keys_from_supabase(user_id=user_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete keys from Supabase: {e}"
+        )
+
+    # If Supabase deletion was successful (or didn't fail), delete from our primary DB
     db.delete(user)
     db.commit()
-    return {"message": "User deleted successfully"}
+    return {"message": "User deleted successfully from all databases"}
 
 
 # ── GET /users/org ────────────────────────────────────────────────────────────
