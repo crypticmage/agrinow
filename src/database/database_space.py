@@ -55,3 +55,31 @@ async def store_user_keys_in_supabase(
             raise RuntimeError(
                 f"Supabase insert failed [{response.status_code}]: {response.text}"
             )
+
+async def delete_user_keys_from_supabase(
+    user_id: int,
+    supabase_url: str = None,
+    supabase_key: str = None
+):
+    """
+    Deletes the encrypted private key and nonce from the Supabase `user_keys` table
+    via Supabase's PostgREST HTTP API when a user is completely deleted.
+    """
+    url = f"{supabase_url or SUPABASE_URL}/rest/v1/user_keys?user_id=eq.{user_id}"
+    key = supabase_key or SUPABASE_SERVICE_KEY
+
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.delete(
+            url,
+            headers=headers
+        )
+        if response.status_code not in (200, 204):
+            raise RuntimeError(
+                f"Supabase delete failed [{response.status_code}]: {response.text}"
+            )
+
