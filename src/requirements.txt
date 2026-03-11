@@ -5,7 +5,7 @@ PyJWT
 httpx
 jinja2
 python-dotenv
-psycopg2
+pymysql
 uvicorn
 pydantic[email]
 google-api-python-client

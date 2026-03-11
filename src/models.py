@@ -5,26 +5,26 @@ from sqlalchemy.sql import func
 class Users(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    public_key = Column(String)
-    email = Column(String, unique=True, index=True)
-    phone = Column(String, unique=True, index=True)
-    first_name = Column(String)
-    last_name = Column(String)
-    language = Column(String)
-    role = Column(String)
+    username = Column(String(255), unique=True, index=True)
+    public_key = Column(String(2000))
+    email = Column(String(255), unique=True, index=True)
+    phone = Column(String(255), unique=True, index=True)
+    first_name = Column(String(255))
+    last_name = Column(String(255))
+    language = Column(String(255))
+    role = Column(String(255))
     manager_id = Column(Integer, ForeignKey("users.id"))
     is_active = Column(Boolean)
     hire_date = Column(Date)
     relive_date = Column(Date)
     created_dt = Column(Date)
-    emp_type = Column(String)
+    emp_type = Column(String(255))
 
 
 class Sites(Base):
     __tablename__ = "sites"
     id = Column(Integer, primary_key=True, index=True)
-    site_name = Column(String, index=True)
+    site_name = Column(String(255), index=True)
     site_description = Column(Text)
     created_date = Column(Date)
     close_date = Column(Date, nullable=True)

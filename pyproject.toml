@@ -8,7 +8,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "sqlalchemy",
-    "psycopg2-binary",
+    "pymysql",
     "cryptography",
     "PyJWT",
     "httpx",
