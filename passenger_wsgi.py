@@ -1,12 +1,12 @@
 import os
 import sys
 
-# 1. Add the 'src' directory to the Python path
+# 1. Add 'src' directory to path
 sys.path.insert(0, os.path.join(os.getcwd(), 'src'))
 
-# 2. Bridge: FastAPI (ASGI) -> cPanel (WSGI)
+# 2. Import bridge and app
 from a2wsgi import ASGIMiddleware
-from entry import app  # This looks for 'app' inside 'src/entry.py'
+from entry import app  # This imports the 'app' from 'src/entry.py'
 
-# Passenger looks for the object named 'application'
+# 3. Passenger expects 'application'
 application = ASGIMiddleware(app)
