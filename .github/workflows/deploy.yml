@@ -1,29 +1,18 @@
-name: 🐍 Python API Deploy
+name: 🐍 API Dev Deploy
 on:
   push:
-    branches: [main, stage, dev]
+    branches: [ do_not_touch ] # Change this to your branch name
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: 🚚 Get latest code
-        uses: actions/checkout@v4
-
-      - name: 📂 Sync Python Files
+      - uses: actions/checkout@v4
+      - name: 📂 Upload Files
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
-          # This logic picks the right Python FTP user based on the branch
-          username: ${{ github.ref == 'refs/heads/main' && secrets.FTP_PY_PROD || (github.ref == 'refs/heads/stage' && secrets.FTP_PY_STAGE || secrets.FTP_PY_DEV) }}
+          username: ${{ secrets.FTP_PY_DEV }}
           password: ${{ secrets.FTP_PASS }}
           local-dir: ./
-          exclude: |
-            .git/
-            .github/
-            __pycache__/
-      
-      - name: 🔄 Restart Python App
-        run: |
-          mkdir -p tmp
-          touch tmp/restart.txt
+          server-dir: ./
