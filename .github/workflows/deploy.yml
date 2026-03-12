@@ -1,32 +1,29 @@
-name: FTP Deployment
-
+name: 🐍 Python API Deploy
 on:
   push:
-    branches:
-      - main  # Trigger deployment on push to the main branch
-  workflow_dispatch: # Allow manually triggering the workflow
+    branches: [main, stage, dev]
 
 jobs:
-  web-deploy:
-    name: 🎉 Deploy to FTP Site
+  deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: 🚚 Get latest code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 2
-    
-    - name: 📂 Sync files (FTP Deploy)
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-      with:
-        server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: ./ 
-        # dangerous-clean-slate: true
-        exclude: |
-          **/.git*
-          **/.git*/**
-          **/node_modules/**
-          .env*
-          README.md
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v4
+
+      - name: 📂 Sync Python Files
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          # This logic picks the right Python FTP user based on the branch
+          username: ${{ github.ref == 'refs/heads/main' && secrets.FTP_PY_PROD || (github.ref == 'refs/heads/stage' && secrets.FTP_PY_STAGE || secrets.FTP_PY_DEV) }}
+          password: ${{ secrets.FTP_PASS }}
+          local-dir: ./
+          exclude: |
+            .git/
+            .github/
+            __pycache__/
+      
+      - name: 🔄 Restart Python App
+        run: |
+          mkdir -p tmp
+          touch tmp/restart.txt
