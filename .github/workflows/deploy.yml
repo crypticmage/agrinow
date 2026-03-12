@@ -1,14 +1,16 @@
 name: 🐍 API Dev Deploy
 on:
   push:
-    branches: [ do_not_touch ] # Change this to your branch name
+    branches: [ your-experimental-branch ] # Replace with your branch name
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: 📂 Upload Files
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v4
+
+      - name: 📂 Sync to cPanel
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -16,3 +18,10 @@ jobs:
           password: ${{ secrets.FTP_PASS }}
           local-dir: ./
           server-dir: ./
+          # Exclude heavy local folders to speed up the sync
+          exclude: |
+            **/node_modules/**
+            **/venv/**
+            **/.git*
+            **/.github/**
+            **/__pycache__/**
