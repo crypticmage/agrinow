@@ -1,12 +1,15 @@
 import os
 import httpx
+from dotenv import load_dotenv
 
+# Load .env relative to this file's path (agrinow/src/database/database.py -> agrinow/.env)
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+load_dotenv(env_path)
 # === Supabase REST API Configuration (Key Vault — DB2) ===
 # Credentials loaded from .env locally or Render environment variables in production
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://wufbwretjlxjinqghwbl.supabase.co")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv(
-    "SUPABASE_SERVICE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1ZmJ3cmV0amx4amlucWdod2JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NTIyOTgsImV4cCI6MjA4ODQyODI5OH0.JfU5vYSeNKbo_9X6qS1ZgnBw0eVQhYZBoFV6_F0c3Bc"
+    "SUPABASE_SERVICE_KEY"
 )
 
 

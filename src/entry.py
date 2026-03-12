@@ -1,8 +1,14 @@
 import os
+import sys
+
+# Add the 'src' directory to sys.path so modules like database, models, and routers are found
+sys.path.insert(0, os.path.dirname(__file__))
+
 from dotenv import load_dotenv
 
 # MUST be loaded before any other imports that call os.getenv() at module level
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+load_dotenv(env_path)
 
 from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
