@@ -39,12 +39,15 @@ app = FastAPI(
     contact={"name": "Agrinow Engineering"},
     license_info={"name": "Proprietary"},
 )
-
+origins = [
+    "https://cmdev.rakshitr.co.in",
+    "https://api-dev.rakshitr.co.in",
+    "http://localhost:3000", # Good for local testing
+]
 # Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*']
-    allow_origin_regex=".*",  
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],  
     allow_headers=["*"],  
