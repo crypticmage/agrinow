@@ -1,7 +1,7 @@
-name: 🐍 API Dev Deploy
+name: API Dev Deploy
 on:
   push:
-    branches: [ your-test-branch ] # Change to your experimental branch name
+    branches: [ your-experimental-branch ]
 
 jobs:
   deploy:
@@ -9,14 +9,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 📂 Sync to cPanel
+      - name: Sync to cPanel
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_PY_DEV }}
           password: ${{ secrets.FTP_PASS }}
           local-dir: ./
-          server-dir: ./
+          server-dir: ./  # Keep it simple
+          # IMPORTANT: This prevents the 553 error on reset servers
+          state-name: .ftp-deploy-sync-state.json 
           exclude: |
             **/venv/**
             **/.git*
