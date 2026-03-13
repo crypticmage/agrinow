@@ -39,6 +39,28 @@ app = FastAPI(
     contact={"name": "Agrinow Engineering"},
     license_info={"name": "Proprietary"},
 )
+
+# Logging setup with relative path
+log_file = os.path.join(os.path.dirname(__file__), "..", "passenger_error.log")
+
+with open(log_file, "a", encoding='utf-8') as f:
+    f.write("[STARTUP] FastAPI app object created\n")
+
+# Middleware to log all requests
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    with open(log_file, "a", encoding='utf-8') as f:
+        f.write(f"[REQUEST] {request.method} {request.url.path}\n")
+    try:
+        response = await call_next(request)
+        with open(log_file, "a", encoding='utf-8') as f:
+            f.write(f"[RESPONSE] {request.method} {request.url.path} - Status: {response.status_code}\n")
+        return response
+    except Exception as e:
+        with open(log_file, "a", encoding='utf-8') as f:
+            f.write(f"[ERROR] {request.method} {request.url.path} - Exception: {str(e)}\n")
+        raise
+
 origins = [
     "https://cmdev.rakshitr.co.in",
     "https://api-dev.rakshitr.co.in",
