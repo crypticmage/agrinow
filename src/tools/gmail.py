@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
 # Load environment variables from the .env file one level up (in agrinow/)
-load_dotenv(os.path.join(os.path.dirname(__file__), "../../", ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 class GmailSender:
     def __init__(self, token_file=None, client_secret_file=None, port=8080):

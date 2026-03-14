@@ -1,5 +1,5 @@
 from database.database import Base
-from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateTime, Text, LargeBinary
 from sqlalchemy.sql import func
 
 class Users(Base):
@@ -46,6 +46,8 @@ class SiteComments(Base):
     site_user_relation_id = Column(Integer, ForeignKey("site_assignments.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     comment = Column(Text)
+    image_id = Column(Integer, ForeignKey("images.id"))
+    type = Column(String(255))
     timestamp = Column(DateTime, server_default=func.now())
 
 class UserLogs(Base):
@@ -54,3 +56,12 @@ class UserLogs(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, server_default=func.now())
+
+class Images(Base):
+    __tablename__ = "images"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    file_name = Column(String(255))
+    data = Column(LargeBinary(length=4294967295))
+    format = Column(String(10))
+    size = Column(Integer)
+    created_at = Column(DateTime, server_default=func.now())
