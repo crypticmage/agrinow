@@ -188,60 +188,70 @@
         const viewer = document.getElementById('viewer');
         const loadingMsg = document.getElementById('loadingMsg');
 
-        if (!imageId) {
+        if (!token) {
+            window.location.href = '/login';
+        } else if (!imageId) {
             loadingMsg.className = 'error-msg';
             loadingMsg.textContent = '❌ No image ID provided. Use ?id=<number>';
         } else {
-            // Fetch metadata first (needs auth)
-            loadMeta();
+            loadViewer();
         }
 
-        async function loadMeta() {
+        async function loadViewer() {
+            let meta = null;
+
+            // 1. Fetch metadata
             try {
-                const resp = await fetch('/images/list', {
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                const listResp = await fetch('/images/list', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (listResp.ok) {
+                    const images = await listResp.json();
+                    meta = images.find(img => img.id === parseInt(imageId));
+                }
+            } catch (e) { /* metadata is optional, continue */ }
+
+            // 2. Fetch actual image bytes WITH auth header
+            try {
+                const imgResp = await fetch(`/images/${imageId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                if (!resp.ok) throw new Error('Could not load image list');
+                if (!imgResp.ok) {
+                    viewer.innerHTML = `<div class="error-msg">❌ Image #${imageId} not found (${imgResp.status}).</div>`;
+                    return;
+                }
 
-                const images = await resp.json();
-                const meta = images.find(img => img.id === parseInt(imageId));
+                const blob = await imgResp.blob();
+                const blobUrl = URL.createObjectURL(blob);
 
-                // Build the viewer
-                const sizeKB = meta ? (meta.size / 1024).toFixed(1) : '?';
+                const sizeKB = meta ? (meta.size / 1024).toFixed(1) : (blob.size / 1024).toFixed(1);
                 const storedAt = meta && meta.created_at ? new Date(meta.created_at).toLocaleString() : 'N/A';
+                const fileName = meta ? meta.file_name : `image_${imageId}`;
+                const format = meta ? meta.format : (blob.type.split('/')[1] || '—').toUpperCase();
 
                 viewer.innerHTML = `
-                    <img src="/images/${imageId}" alt="${meta ? meta.file_name : 'Image'}" />
+                    <img src="${blobUrl}" alt="${fileName}" />
                     <div class="image-info">
                         <div class="meta">
-                            <span class="file-name">${meta ? meta.file_name : 'Image #' + imageId}</span>
+                            <span class="file-name">${fileName}</span>
                             <span class="details">${sizeKB} KB · Uploaded ${storedAt}</span>
                         </div>
-                        <span class="badge">${meta ? meta.format : '—'}</span>
-                        <a href="/images/${imageId}" download class="btn-download">Download</a>
+                        <span class="badge">${format}</span>
+                        <a id="downloadBtn" class="btn-download">Download</a>
                     </div>
                 `;
-            } catch (e) {
-                // Even if metadata fails, still try to show the image
-                viewer.innerHTML = `
-                    <img src="/images/${imageId}" alt="Image" />
-                    <div class="image-info">
-                        <div class="meta">
-                            <span class="file-name">Image #${imageId}</span>
-                            <span class="details">Metadata unavailable</span>
-                        </div>
-                        <a href="/images/${imageId}" download class="btn-download">Download</a>
-                    </div>
-                `;
-            }
 
-            // Handle broken image
-            const img = viewer.querySelector('img');
-            if (img) {
-                img.onerror = () => {
-                    viewer.innerHTML = `<div class="error-msg">❌ Image #${imageId} not found.</div>`;
-                };
+                // Download via blob (also needs auth, so reuse the blob)
+                document.getElementById('downloadBtn').addEventListener('click', () => {
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = fileName;
+                    a.click();
+                });
+
+            } catch (e) {
+                viewer.innerHTML = `<div class="error-msg">❌ Failed to load image: ${e.message}</div>`;
             }
         }
     </script>
