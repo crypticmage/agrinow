@@ -1,3 +1,6 @@
 __pycache__/
 .env
 agrinow.db
+*.log
+*.pyc
+*.db
