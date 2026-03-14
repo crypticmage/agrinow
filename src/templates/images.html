@@ -372,7 +372,7 @@
                             <td>${img.format}</td>
                             <td>${sizeKB} KB</td>
                             <td>${img.created_at ? d.toLocaleString() : 'N/A'}</td>
-                            <td><a href="/images/${img.id}" target="_blank" class="view-link">View Image</a></td>
+                            <td><a href="/view-image?id=${img.id}" target="_blank" class="view-link">View Image</a></td>
                         </tr>
                     `;
                 }).join('');

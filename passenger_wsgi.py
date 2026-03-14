@@ -18,9 +18,21 @@ def log_msg(msg):
 log_msg("=== PASSENGER WSGI STARTUP ===")
 
 try:
-    from src.entry import app
+    from entry import app
     log_msg("[OK] FastAPI app imported")
     
+    # Standard HTTP status reason phrases
+    HTTP_STATUS_PHRASES = {
+        200: "OK", 201: "Created", 204: "No Content",
+        301: "Moved Permanently", 302: "Found", 304: "Not Modified",
+        307: "Temporary Redirect", 308: "Permanent Redirect",
+        400: "Bad Request", 401: "Unauthorized", 403: "Forbidden",
+        404: "Not Found", 405: "Method Not Allowed", 409: "Conflict",
+        422: "Unprocessable Entity", 429: "Too Many Requests",
+        500: "Internal Server Error", 502: "Bad Gateway",
+        503: "Service Unavailable",
+    }
+
     def application(environ, start_response):
         """WSGI application wrapper for FastAPI ASGI app"""
         import asyncio
@@ -30,7 +42,32 @@ try:
         log_msg(f"[REQUEST] {method} {path}")
         
         try:
-            # Build ASGI scope
+            # ── 1. Read the full request body from WSGI input ──
+            try:
+                content_length = int(environ.get('CONTENT_LENGTH') or 0)
+            except (ValueError, TypeError):
+                content_length = 0
+            
+            if content_length > 0:
+                request_body = environ['wsgi.input'].read(content_length)
+            else:
+                request_body = b''
+
+            # ── 2. Convert WSGI environ headers → ASGI header list ──
+            headers = []
+            # Content-Type and Content-Length are special in WSGI
+            ct = environ.get('CONTENT_TYPE')
+            if ct:
+                headers.append((b'content-type', ct.encode('latin-1')))
+            if content_length:
+                headers.append((b'content-length', str(content_length).encode('latin-1')))
+            # All other HTTP_* keys
+            for key, value in environ.items():
+                if key.startswith('HTTP_'):
+                    header_name = key[5:].replace('_', '-').lower().encode('latin-1')
+                    headers.append((header_name, value.encode('latin-1')))
+
+            # ── 3. Build ASGI scope ──
             scope = {
                 'type': 'http',
                 'asgi': {'version': '3.0'},
@@ -40,25 +77,25 @@ try:
                 'path': path,
                 'query_string': environ.get('QUERY_STRING', '').encode(),
                 'root_path': environ.get('SCRIPT_NAME', ''),
-                'headers': [],
+                'headers': headers,
                 'server': (environ.get('SERVER_NAME', 'localhost'), int(environ.get('SERVER_PORT', 80))),
-                'client': (environ.get('REMOTE_ADDR', '127.0.0.1'), int(environ.get('REMOTE_PORT', 0)) or None),
+                'client': (environ.get('REMOTE_ADDR', '127.0.0.1'), int(environ.get('REMOTE_PORT', 0) or 0)),
             }
             
             # Variables to store response
-            status_code = 200
-            response_headers = []
+            resp_status = 200
+            resp_headers = []
             body_parts = []
             
             async def receive():
-                return {'type': 'http.request', 'body': b''}
+                return {'type': 'http.request', 'body': request_body}
             
             async def send(message):
-                nonlocal status_code, response_headers, body_parts
+                nonlocal resp_status, resp_headers, body_parts
                 
                 if message['type'] == 'http.response.start':
-                    status_code = message['status']
-                    response_headers = message.get('headers', [])
+                    resp_status = message['status']
+                    resp_headers = message.get('headers', [])
                     
                 elif message['type'] == 'http.response.body':
                     body = message.get('body', b'')
@@ -72,14 +109,17 @@ try:
             asyncio.run(run_app())
             
             # Prepare headers for WSGI
-            headers = [(name.decode() if isinstance(name, bytes) else name,
-                       value.decode() if isinstance(value, bytes) else value)
-                      for name, value in response_headers]
+            wsgi_headers = [
+                (name.decode('latin-1') if isinstance(name, bytes) else name,
+                 value.decode('latin-1') if isinstance(value, bytes) else value)
+                for name, value in resp_headers
+            ]
             
-            # Send status and headers
-            start_response(f"{status_code} OK", headers)
+            # Build correct status line (e.g. "200 OK", "422 Unprocessable Entity")
+            reason = HTTP_STATUS_PHRASES.get(resp_status, "Unknown")
+            start_response(f"{resp_status} {reason}", wsgi_headers)
             
-            log_msg(f"[RESPONSE] {method} {path} - {status_code}")
+            log_msg(f"[RESPONSE] {method} {path} - Status: {resp_status}")
             
             # Return body parts
             return body_parts if body_parts else [b'']

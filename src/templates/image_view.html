@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agrinow — View Image</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2d1f 100%);
+            color: #f1f5f9;
+            padding: 2rem;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #4ade80;
+            text-decoration: none;
+        }
+
+        .logo svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .nav-links a {
+            background: rgba(255, 255, 255, 0.1);
+            color: #f8fafc;
+            font-weight: 500;
+            font-size: 0.82rem;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.9rem;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ── Image card ── */
+        .image-card {
+            max-width: 960px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 1.25rem;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        }
+
+        .image-card img {
+            width: 100%;
+            display: block;
+            object-fit: contain;
+            max-height: 70vh;
+            background: #000;
+        }
+
+        .image-info {
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .image-info .meta {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .image-info .file-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+
+        .image-info .details {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .badge {
+            background: rgba(74, 222, 128, 0.12);
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            color: #4ade80;
+            border-radius: 999px;
+            padding: 0.3rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .btn-download {
+            background: #4ade80;
+            color: #0f172a;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem 1.2rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        .btn-download:hover {
+            opacity: 0.9;
+        }
+
+        .error-msg {
+            text-align: center;
+            padding: 4rem 2rem;
+            font-size: 1.1rem;
+            color: #f87171;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 4rem 2rem;
+            font-size: 0.95rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/users-page" class="logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+            </svg>
+            Agrinow
+        </a>
+        <div class="nav-links">
+            <a href="/images-page">← All Images</a>
+        </div>
+    </nav>
+
+    <!-- Image Viewer -->
+    <div class="image-card" id="viewer">
+        <div class="loading" id="loadingMsg">Loading image…</div>
+    </div>
+
+    <script>
+        // Extract image ID from URL: /view-image?id=2
+        const params = new URLSearchParams(window.location.search);
+        const imageId = params.get('id');
+        const token = localStorage.getItem('agrinow_token');
+
+        const viewer = document.getElementById('viewer');
+        const loadingMsg = document.getElementById('loadingMsg');
+
+        if (!imageId) {
+            loadingMsg.className = 'error-msg';
+            loadingMsg.textContent = '❌ No image ID provided. Use ?id=<number>';
+        } else {
+            // Fetch metadata first (needs auth)
+            loadMeta();
+        }
+
+        async function loadMeta() {
+            try {
+                const resp = await fetch('/images/list', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+
+                if (!resp.ok) throw new Error('Could not load image list');
+
+                const images = await resp.json();
+                const meta = images.find(img => img.id === parseInt(imageId));
+
+                // Build the viewer
+                const sizeKB = meta ? (meta.size / 1024).toFixed(1) : '?';
+                const storedAt = meta && meta.created_at ? new Date(meta.created_at).toLocaleString() : 'N/A';
+
+                viewer.innerHTML = `
+                    <img src="/images/${imageId}" alt="${meta ? meta.file_name : 'Image'}" />
+                    <div class="image-info">
+                        <div class="meta">
+                            <span class="file-name">${meta ? meta.file_name : 'Image #' + imageId}</span>
+                            <span class="details">${sizeKB} KB · Uploaded ${storedAt}</span>
+                        </div>
+                        <span class="badge">${meta ? meta.format : '—'}</span>
+                        <a href="/images/${imageId}" download class="btn-download">Download</a>
+                    </div>
+                `;
+            } catch (e) {
+                // Even if metadata fails, still try to show the image
+                viewer.innerHTML = `
+                    <img src="/images/${imageId}" alt="Image" />
+                    <div class="image-info">
+                        <div class="meta">
+                            <span class="file-name">Image #${imageId}</span>
+                            <span class="details">Metadata unavailable</span>
+                        </div>
+                        <a href="/images/${imageId}" download class="btn-download">Download</a>
+                    </div>
+                `;
+            }
+
+            // Handle broken image
+            const img = viewer.querySelector('img');
+            if (img) {
+                img.onerror = () => {
+                    viewer.innerHTML = `<div class="error-msg">❌ Image #${imageId} not found.</div>`;
+                };
+            }
+        }
+    </script>
+</body>
+
+</html>

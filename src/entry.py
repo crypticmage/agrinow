@@ -113,6 +113,10 @@ async def user_logs_page(request: Request):
 async def images_page(request: Request):
     return templates.TemplateResponse("images.html", {"request": request})
 
+@app.get("/view-image", response_class=HTMLResponse, summary="Image Viewer", include_in_schema=False)
+async def view_image_page(request: Request):
+    return templates.TemplateResponse("image_view.html", {"request": request})
+
 @app.get("/debug")
 async def debug_connections():
     """Tests PostgreSQL and Supabase connections independently."""
