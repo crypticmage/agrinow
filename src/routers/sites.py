@@ -46,12 +46,16 @@ class SiteAssignmentResponse(SiteAssignmentCreate):
 class SiteCommentCreate(BaseModel):
     site_user_relation_id: int
     comment: str
+    image_id: Optional[int] = None
+    type: Optional[str] = "text"
 
 class SiteCommentResponse(BaseModel):
     id: int
     site_user_relation_id: int
     user_id: int
     comment: str
+    image_id: Optional[int] = None
+    type: Optional[str] = None
     timestamp: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,6 +106,8 @@ def add_site_comment(comment_req: SiteCommentCreate, db: db_dependency, current_
         site_user_relation_id=assignment.id,
         user_id=assignment.user_id,
         comment=comment_req.comment,
+        image_id=comment_req.image_id,
+        type=comment_req.type,
         timestamp=datetime.utcnow()
     )
     db.add(new_comment)

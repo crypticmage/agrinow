@@ -1,8 +1,14 @@
 import os
+import sys
+
+# Add the 'src' directory to sys.path so modules like database, models, and routers are found
+sys.path.insert(0, os.path.dirname(__file__))
+
 from dotenv import load_dotenv
 
 # MUST be loaded before any other imports that call os.getenv() at module level
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+load_dotenv(env_path)
 
 from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
@@ -11,7 +17,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from database.database import engine
 import models
-from routers import create_user, auth, users, sites
+from routers import create_user, auth, users, sites, images
 
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=True)
 
@@ -40,6 +46,26 @@ app = FastAPI(
     license_info={"name": "Proprietary"},
 )
 
+log_file = os.path.join(os.path.dirname(__file__), "..", "passenger_error.log")
+
+with open(log_file, "a", encoding='utf-8') as f:
+    f.write("[STARTUP] FastAPI app object created\n")
+
+# Middleware to log all requests
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    with open(log_file, "a", encoding='utf-8') as f:
+        f.write(f"[REQUEST] {request.method} {request.url.path}\n")
+    try:
+        response = await call_next(request)
+        with open(log_file, "a", encoding='utf-8') as f:
+            f.write(f"[RESPONSE] {request.method} {request.url.path} - Status: {response.status_code}\n")
+        return response
+    except Exception as e:
+        with open(log_file, "a", encoding='utf-8') as f:
+            f.write(f"[ERROR] {request.method} {request.url.path} - Exception: {str(e)}\n")
+        raise
+    
 # Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
@@ -82,6 +108,10 @@ async def org_chart_page(request: Request):
 @app.get("/user-logs", response_class=HTMLResponse, summary="Users Logs UI", include_in_schema=False)
 async def user_logs_page(request: Request):
     return templates.TemplateResponse("user_logs.html", {"request": request})
+
+@app.get("/images-page", response_class=HTMLResponse, summary="Images UI", include_in_schema=False)
+async def images_page(request: Request):
+    return templates.TemplateResponse("images.html", {"request": request})
 
 @app.get("/debug")
 async def debug_connections():
@@ -131,3 +161,4 @@ app.include_router(create_user.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(sites.router)
+app.include_router(images.router)
