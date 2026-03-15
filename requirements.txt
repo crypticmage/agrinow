@@ -14,3 +14,8 @@ google-auth-oauthlib
 a2wsgi
 pillow
 python-multipart
+uvicorn 'logfire[fastapi]'
+logfire
+logfire[sqlalchemy]
+logfire[httpx]
+googletrans

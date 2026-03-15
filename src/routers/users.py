@@ -1,7 +1,7 @@
 from typing import Annotated, Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from starlette import status
 from database.database import SessionLocal
 from database.database_space import delete_user_keys_from_supabase
@@ -105,7 +105,12 @@ def get_all_users(
     - **skip**: number of records to skip (default 0)
     - **limit**: max records to return (default 50, max recommended 100)
     """
-    users = db.query(Users).offset(skip).limit(limit).all()
+    users = db.query(Users).options(load_only(
+        Users.id, Users.username, Users.email, Users.phone, Users.first_name,
+        Users.last_name, Users.language, Users.role, Users.manager_id,
+        Users.is_active, Users.hire_date, Users.relive_date, Users.emp_type,
+        Users.created_dt
+    )).offset(skip).limit(limit).all()
     if not users:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -132,7 +137,9 @@ def get_manager_dropdown(
     """
     Fetch all active users for dropdowns.
     """
-    users = db.query(Users).filter(Users.is_active == True).all()
+    users = db.query(Users.id, Users.username, Users.first_name, Users.last_name).filter(
+        Users.is_active == True
+    ).all()
     return users
 
 # ── GET /users/logs ────────────────────────────────────────────────────────────
@@ -184,7 +191,12 @@ def get_user_logs(
     }
 )
 def get_user(user_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
-    user = db.query(Users).filter(Users.id == user_id).first()
+    user = db.query(Users).options(load_only(
+        Users.id, Users.username, Users.email, Users.phone, Users.first_name,
+        Users.last_name, Users.language, Users.role, Users.manager_id,
+        Users.is_active, Users.hire_date, Users.relive_date, Users.emp_type,
+        Users.created_dt
+    )).filter(Users.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -293,12 +305,16 @@ def get_user_org_chart(
     email: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
 ):
+    query = db.query(Users).options(load_only(
+        Users.id, Users.username, Users.first_name, Users.last_name, Users.role
+    ))
+    
     if username:
-        root_user = db.query(Users).filter(Users.username == username).first()
+        root_user = query.filter(Users.username == username).first()
     elif email:
-        root_user = db.query(Users).filter(Users.email == email).first()
+        root_user = query.filter(Users.email == email).first()
     else:
-        root_user = db.query(Users).filter(Users.id == int(current_user.get("sub"))).first()
+        root_user = query.filter(Users.id == int(current_user.get("sub"))).first()
 
     if not root_user:
         raise HTTPException(
@@ -306,9 +322,10 @@ def get_user_org_chart(
             detail="User not found."
         )
 
-    # Fetch all active users to build the tree efficiently in memory
-    # instead of hitting the database for each node's children.
-    all_users = db.query(Users).filter(Users.is_active == True).all()
+    # Fetch only necessary columns for the tree nodes
+    all_users = db.query(
+        Users.id, Users.username, Users.first_name, Users.last_name, Users.role, Users.manager_id
+    ).filter(Users.is_active == True).all()
     
     children_map = {}
     for u in all_users:

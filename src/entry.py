@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database.database import engine
 import models
 from routers import create_user, auth, users, sites, images
+import logfire
 
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=True)
 
@@ -45,6 +46,10 @@ app = FastAPI(
     contact={"name": "Agrinow Engineering"},
     license_info={"name": "Proprietary"},
 )
+# ── Logfire Observability ─────────────────────────────────────────────────────
+logfire.configure()
+logfire.instrument_fastapi(app)
+logfire.instrument_httpx()
 
 log_file = os.path.join(os.path.dirname(__file__), "..", "passenger_error.log")
 
@@ -100,6 +105,10 @@ async def forgot_password_page(request: Request):
 @app.get("/reset-password", response_class=HTMLResponse, summary="Reset password form", description="Serves the password reset page.", include_in_schema=False)
 async def reset_password_page(request: Request):
     return templates.TemplateResponse("reset_password.html", {"request": request})
+
+@app.get("/change-password", response_class=HTMLResponse, summary="Change password form", description="Serves the password change page for logged-in users.", include_in_schema=False)
+async def change_password_page(request: Request):
+    return templates.TemplateResponse("change_password.html", {"request": request})
 
 @app.get("/users-page", response_class=HTMLResponse, summary="Users dashboard", description="Serves the users listing dashboard (requires JWT in localStorage).", include_in_schema=False)
 async def users_page(request: Request):

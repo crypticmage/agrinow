@@ -113,7 +113,7 @@ def role_checker(allowed_roles: list):
 async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependency, current_user = Depends(role_checker(["admin"]))):
     # Duplicate user check BEFORE any crypto to prevent CPU abuse
     try:
-        existing_user = db.query(Users).filter(
+        existing_user = db.query(Users.id).filter(
             (Users.username == user_req.username) | (Users.email == user_req.email)
         ).first()
     except Exception as e:
@@ -203,15 +203,21 @@ async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependen
 
             # Only commit D1 if Supabase insert succeeded — both DBs are now in sync
             db.commit()
-            gmail_client = GmailSender()
-            # 3. Call send_email
-            gmail_client.send_email(
-                sender="crypticmage00@gmail.com",
-                to=user_req.email,
-                name=user_req.first_name + " " + user_req.last_name,
-                role=user_req.role,
-                hire_date=user_req.hire_date
-            )
+
+            # 3. Send welcome email (Non-critical — don't crash if email fails)
+            try:
+                gmail_client = GmailSender()
+                await gmail_client.send_email(
+                    sender="crypticmage00@gmail.com",
+                    to=user_req.email,
+                    name=user_req.first_name + " " + user_req.last_name,
+                    role=user_req.role,
+                    hire_date=user_req.hire_date,
+                    language=user_req.language
+                )
+            except Exception as email_err:
+                print(f"⚠️ User created, but welcome email failed: {email_err}")
+                # Note: We don't re-raise here because the user is already committed safely.
         except Exception as e:
             db.rollback()  # Undo the D1 flush so no orphaned user row is left behind
             raise HTTPException(

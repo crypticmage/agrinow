@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from starlette import status
 from database.database import SessionLocal
 from models import Users, PasswordResetTokens
@@ -26,7 +26,7 @@ router = APIRouter(
 )
 
 ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = 10
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 #token excperis afgter one hout
 
 
 def get_db():
@@ -64,6 +64,7 @@ class TokenResponse(BaseModel):
     token_type: str   = Field(description="Always 'bearer'.")
     username: str     = Field(description="The authenticated user's username.")
     role: str         = Field(description="The authenticated user's role (e.g. admin, farmer, agent).")
+    email: str        = Field(description="The authenticated user's email address.")
 
 
 # ── POST /auth/login ─────────────────────────────────────────────────────────
@@ -106,8 +107,10 @@ async def login(login_req: LoginRequest, db: db_dependency):
     argon2_pepper = argon2_pepper_str.encode("utf-8")
     argon2_ad     = argon2_ad_str.encode("utf-8")
 
-    # 2. Look up user by username OR email
-    user = db.query(Users).filter(
+    # 2. Look up user by username OR email - Fetch only required columns
+    user = db.query(Users).options(load_only(
+        Users.id, Users.username, Users.email, Users.role, Users.is_active
+    )).filter(
         (Users.username == login_req.identifier) |
         (Users.email    == login_req.identifier)
     ).first()
@@ -181,6 +184,7 @@ async def login(login_req: LoginRequest, db: db_dependency):
         payload = {
             "sub":      str(user.id),
             "username": user.username,
+            "email":    user.email,
             "role":     user.role,
             "exp":      expire,
         }
@@ -198,6 +202,7 @@ async def login(login_req: LoginRequest, db: db_dependency):
             access_token=token,
             token_type="bearer",
             username=user.username,
+            email=user.email,
             role=user.role,
         )
 
@@ -244,7 +249,9 @@ async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_depe
     # Always return the same message to prevent user enumeration
     generic_response = {"message": "If an account with that email exists, a reset link has been sent."}
 
-    user = db.query(Users).filter(Users.email == body.email).first()
+    user = db.query(Users).options(load_only(
+        Users.id, Users.email, Users.is_active, Users.first_name, Users.last_name
+    )).filter(Users.email == body.email).first()
     if not user or not user.is_active:
         return generic_response
 
@@ -268,7 +275,7 @@ async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_depe
     # Send the reset email
     try:
         gmail_client = GmailSender()
-        gmail_client.send_reset_email(
+        await gmail_client.send_reset_email(
             sender="crypticmage00@gmail.com",
             to=user.email,
             name=f"{user.first_name} {user.last_name}",
@@ -325,8 +332,10 @@ async def reset_password(body: ResetPasswordRequest, db: db_dependency):
             detail="This reset token has expired. Please request a new one."
         )
 
-    # Fetch the user
-    user = db.query(Users).filter(Users.id == token_record.user_id).first()
+    # Fetch the user - Only need id and email for master key derivation
+    user = db.query(Users).options(load_only(Users.id, Users.email)).filter(
+        Users.id == token_record.user_id
+    ).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -420,3 +429,125 @@ async def reset_password(body: ResetPasswordRequest, db: db_dependency):
             del private_key
         if private_bytes:
             del private_bytes
+
+
+class ChangePasswordRequest(BaseModel):
+    """New password for a logged-in user."""
+    new_password: str = Field(..., description="The brand-new password to set.", min_length=6)
+
+
+# ── POST /auth/change-password ───────────────────────────────────────────────
+
+@router.post(
+    "/change-password",
+    status_code=status.HTTP_200_OK,
+    summary="Update password for the current user",
+    description=(
+        "Allows the logged-in user to change their password securely.\n\n"
+        "1. Generates a **new Ed25519 key pair**.\n"
+        "2. Derives a new master key via Argon2id from the new password.\n"
+        "3. AES-GCM encrypts the new private key.\n"
+        "4. Updates the **public key** in PostgreSQL.\n"
+        "5. Replaces the **encrypted private key + nonce** in Supabase.\n"
+    ),
+)
+async def change_password(
+    body: ChangePasswordRequest, 
+    db: db_dependency, 
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = int(current_user.get("sub"))
+    user = db.query(Users).filter(Users.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
+
+    # Fetch required secrets
+    argon2_pepper_str = os.getenv("ARGON2_SECRET_PEPPER")
+    argon2_ad_str     = os.getenv("ARGON2_ASSOCIATED_DATA")
+    if not argon2_pepper_str or not argon2_ad_str:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server misconfiguration: required secrets are missing."
+        )
+
+    argon2_pepper = argon2_pepper_str.encode("utf-8")
+    argon2_ad     = argon2_ad_str.encode("utf-8")
+
+    master_key = None
+    private_key = None
+    private_bytes = None
+
+    try:
+        # 1. Derive new master key from the new password
+        salt = user.email.encode("utf-8")
+        kdf = Argon2id(
+            salt=salt,
+            length=32,
+            iterations=2,
+            lanes=4,
+            memory_cost=65536,
+            ad=argon2_ad,
+            secret=argon2_pepper,
+        )
+        master_key = kdf.derive(body.new_password.encode("utf-8"))
+
+        # 2. Generate new Ed25519 key pair
+        private_key = ed25519.Ed25519PrivateKey.generate()
+        public_key = private_key.public_key()
+
+        public_bytes = public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw
+        )
+        private_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+
+        # 3. AES-GCM encrypt the new private key
+        aesgcm = AESGCM(master_key)
+        nonce = os.urandom(12)
+        encrypted_private_key = aesgcm.encrypt(nonce, private_bytes, None)
+
+        # Encode to base64
+        b64_public_key = base64.b64encode(public_bytes).decode("utf-8")
+        b64_encrypted_private_key = base64.b64encode(encrypted_private_key).decode("utf-8")
+        b64_nonce = base64.b64encode(nonce).decode("utf-8")
+
+        # 4. Update public key in PostgreSQL
+        user.public_key = b64_public_key
+        db.flush()
+
+        # 5. Replace encrypted private key + nonce in Supabase
+        await update_user_keys_in_supabase(
+            user_id=user.id,
+            encrypted_private_key=b64_encrypted_private_key,
+            nonce=b64_nonce,
+        )
+
+        db.commit()
+        return {"message": "Password updated successfully."}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Password update failed: {e}"
+        )
+    finally:
+        # Wipe sensitive values
+        if hasattr(body, "new_password") and body.new_password:
+            pwd_len = len(body.new_password)
+            body.new_password = "\x00" * pwd_len
+        if master_key:
+            del master_key
+        if private_key:
+            del private_key
+        if private_bytes:
+            del private_bytes
+
