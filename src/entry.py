@@ -117,6 +117,10 @@ async def images_page(request: Request):
 async def view_image_page(request: Request):
     return templates.TemplateResponse("image_view.html", {"request": request})
 
+@app.get("/site-chat", response_class=HTMLResponse, summary="Site Chat UI", include_in_schema=False)
+async def site_chat_page(request: Request):
+    return templates.TemplateResponse("site_chat.html", {"request": request})
+
 @app.get("/debug")
 async def debug_connections():
     """Tests PostgreSQL and Supabase connections independently."""
