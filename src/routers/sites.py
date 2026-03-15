@@ -61,6 +61,33 @@ class SiteCommentResponse(BaseModel):
 
 # --- Routes ---
 
+@router.get("/my", response_model=List[SiteResponse], status_code=status.HTTP_200_OK)
+def get_my_sites(db: db_dependency, current_user: dict = Depends(get_current_user)):
+    """Fetch all sites assigned to the current logged-in user."""
+    user_id = int(current_user.get("sub"))
+    sites = (
+        db.query(Sites)
+        .join(SiteAssignments, SiteAssignments.site_id == Sites.id)
+        .filter(SiteAssignments.user_id == user_id)
+        .all()
+    )
+    return sites
+
+@router.get("/my-assignments", status_code=status.HTTP_200_OK)
+def get_my_assignments(db: db_dependency, current_user: dict = Depends(get_current_user)):
+    """Fetch all site assignment rows for the current user."""
+    user_id = int(current_user.get("sub"))
+    assignments = db.query(SiteAssignments).filter(SiteAssignments.user_id == user_id).all()
+    return [
+        {
+            "id": a.id,
+            "user_id": a.user_id,
+            "site_id": a.site_id,
+            "assigned_date": str(a.assigned_date) if a.assigned_date else None,
+        }
+        for a in assignments
+    ]
+
 @router.post("/", response_model=SiteResponse, status_code=status.HTTP_201_CREATED)
 def create_site(site_request: SiteCreate, db: db_dependency, current_user: dict = Depends(get_current_user)):
     """Create a new site."""

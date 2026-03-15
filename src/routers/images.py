@@ -168,16 +168,66 @@ async def upload_image(db: db_dependency, file: UploadFile = File(...), current_
         "stream the actual image."
     ),
 )
-def list_images(db: db_dependency, skip: int = 0, limit: int = 100, current_user: dict = Depends(get_current_user)):
-    return db.query(Images).order_by(Images.id).offset(skip).limit(limit).all()
+# def list_images(db: db_dependency, skip: int = 0, limit: int = 100, current_user: dict = Depends(get_current_user)):
+#     return db.query(Images).order_by(Images.id).offset(skip).limit(limit).all()
 
-
+@router.get("/list", response_model=List[ImageMeta], status_code=status.HTTP_200_OK)
+def list_images(
+    db: db_dependency,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: dict = Depends(get_current_user), summary="List all stored images",
+    description=(
+        "Returns metadata (id, file_name, format, size, created_at) for every row "
+        "in the `images` table. No BLOB data is sent — use GET /images/{id} to "
+        "stream the actual image."
+    ),
+):
+    rows = (
+        db.query(
+            Images.id,
+            Images.file_name,
+            Images.format,
+            Images.size,
+            Images.created_at,
+        )
+        .order_by(Images.id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return [ImageMeta.model_validate(row._asdict()) for row in rows]
 # ─────────────────────────────────────────────────────────────────────────────
 #  GET /images/{image_id}  — stream the actual image
 # ─────────────────────────────────────────────────────────────────────────────
-@router.get(
-    "/{image_id}",
-    summary="Stream an image by ID",
+# @router.get(
+#     "/{image_id}",
+#     summary="Stream an image by ID",
+#     description=(
+#         "Fetches the BLOB from the `images` table and returns it as a binary "
+#         "image response — renders directly in the browser."
+#     ),
+#     responses={
+#         200: {"content": {"image/*": {}}, "description": "Raw image bytes"},
+#         404: {"description": "Image not found"},
+#     },
+# )
+# async def get_image(image_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
+#     record = db.query(Images).filter(Images.id == image_id).first()
+#     if not record:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail=f"No image found with id={image_id}",
+#         )
+
+#     fmt = (record.format or "jpeg").lower()
+#     if fmt == "jpg":
+#         fmt = "jpeg"
+
+#     return Response(content=record.data, media_type=f"image/{fmt}")
+
+
+@router.get("/{image_id}"  ,  summary="Stream an image by ID",
     description=(
         "Fetches the BLOB from the `images` table and returns it as a binary "
         "image response — renders directly in the browser."
@@ -185,18 +235,19 @@ def list_images(db: db_dependency, skip: int = 0, limit: int = 100, current_user
     responses={
         200: {"content": {"image/*": {}}, "description": "Raw image bytes"},
         404: {"description": "Image not found"},
-    },
-)
-async def get_image(image_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
-    record = db.query(Images).filter(Images.id == image_id).first()
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No image found with id={image_id}",
-        )
+    },)
+async def get_image(
+    image_id: int,
+    db: db_dependency,
+    current_user: dict = Depends(get_current_user),
+):
+    row = (
+        db.query(Images.data, Images.format)
+        .filter(Images.id == image_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"No image found with id={image_id}")
 
-    fmt = (record.format or "jpeg").lower()
-    if fmt == "jpg":
-        fmt = "jpeg"
-
-    return Response(content=record.data, media_type=f"image/{fmt}")
+    fmt = (row.format or "jpeg").lower().replace("jpg", "jpeg")
+    return Response(content=row.data, media_type=f"image/{fmt}")

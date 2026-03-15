@@ -1,6 +1,7 @@
 from database.database import Base
 from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateTime, Text, LargeBinary
 from sqlalchemy.sql import func
+from sqlalchemy.orm import deferred
 
 class Users(Base):
     __tablename__ = "users"
@@ -61,7 +62,7 @@ class Images(Base):
     __tablename__ = "images"
     id = Column(Integer, primary_key=True, autoincrement=True)
     file_name = Column(String(255))
-    data = Column(LargeBinary(length=4294967295))
+    data = deferred(Column(LargeBinary(length=4294967295)))
     format = Column(String(10))
     size = Column(Integer)
     created_at = Column(DateTime, server_default=func.now())
