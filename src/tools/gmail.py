@@ -2,6 +2,7 @@ import os
 import base64
 import json
 import ast
+import re
 from email.message import EmailMessage
 from fastapi import HTTPException
 from google.auth.transport.requests import Request
@@ -12,7 +13,6 @@ from dotenv import load_dotenv
 import asyncio
 from googletrans import Translator, LANGUAGES
 
-# Load environment variables from the .env file one level up (in agrinow/)
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 class GmailSender:
@@ -24,7 +24,7 @@ class GmailSender:
         self.service = self._get_gmail_service()
 
     def _clean_json_str(self, s):
-        """Normalize JSON string — handles single quotes, outer wrapping, etc."""
+        """Normalize JSON string — handles single quotes, bare keys, outer wrapping."""
         if not s: return s
         s = s.strip()
 
@@ -32,13 +32,33 @@ class GmailSender:
         if s.startswith("'") and s.endswith("'"):
             s = s[1:-1]
 
-        # ast.literal_eval handles Python dict syntax with single quotes
-        # json.dumps always outputs valid double-quoted JSON
+        # Try json.loads first — already valid JSON
+        try:
+            json.loads(s)
+            return s
+        except json.JSONDecodeError:
+            pass
+
+        # Try ast.literal_eval — handles Python dict with single-quoted keys
         try:
             parsed = ast.literal_eval(s)
             return json.dumps(parsed)
         except Exception:
-            return s  # fallback — return as-is
+            pass
+
+        # Fix bare unquoted keys: {token: abc} → {"token": "abc"}
+        try:
+            fixed = s
+            # Add quotes around unquoted keys
+            fixed = re.sub(r'(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', fixed)
+            # Add quotes around unquoted string values
+            fixed = re.sub(r':\s*([^",\{\}\[\]\d][^,\}\]]*?)(\s*[,\}])', r':"\1"\2', fixed)
+            parsed = json.loads(fixed)
+            return json.dumps(parsed)
+        except Exception:
+            pass
+
+        return s  # fallback — return as-is
 
     def _get_gmail_service(self):
         creds = None
@@ -50,13 +70,13 @@ class GmailSender:
                 creds = Credentials.from_authorized_user_info(token_json, self.scopes)
             except json.JSONDecodeError as e:
                 print(f"Failed to parse GMAIL_TOKEN_FILE JSON: {e}")
-                print(f"Raw value first 100 chars: {self.token_data[:100]}")  # ← see actual value
-            raise
+                print(f"Raw value first 100 chars: {self.token_data[:100]}")
+
         if not creds:
             raise RuntimeError("Gmail credentials could not be loaded. Check GMAIL_TOKEN_FILE in .env")
 
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
+        if not creds.valid:
+            if creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
                 clean_secret = self._clean_json_str(self.client_secret_data)
@@ -66,6 +86,7 @@ class GmailSender:
                     creds = flow.run_local_server(port=self.port, access_type='offline', prompt='consent')
                 except json.JSONDecodeError as e:
                     print(f"Failed to parse GMAIL_CLIENT_SECRET_FILE JSON: {e}")
+                    raise RuntimeError("Gmail client secret could not be loaded. Check GMAIL_CLIENT_SECRET_FILE in .env")
 
         return build('gmail', 'v1', credentials=creds)
 
@@ -85,12 +106,12 @@ class GmailSender:
             translator = Translator()
             result = await asyncio.wait_for(
                 translator.translate(text, dest=lang_code),
-                timeout=5.0  # don't hang if cPanel blocks outbound HTTP
+                timeout=5.0
             )
             return result.text
         except Exception as e:
             print(f"Translation failed for '{lang_code}': {e}. Falling back to English.")
-            return text  # always fallback, never crash
+            return text
 
     async def send_email(self, sender, to, name, role, hire_date, language="en"):
         """Sends a translatable welcome email to new users."""
@@ -123,7 +144,6 @@ class GmailSender:
                 <h1 style="margin: 0; color: #ffffff; font-size: 28px; letter-spacing: 1px;">SeedSense</h1>
             </td>
         </tr>
-
         <tr>
             <td style="padding: 40px 30px;">
                 <h2 style="margin: 0 0 20px 0; color: #2e7d32; font-size: 24px;">{welcome_heading}</h2>
@@ -131,7 +151,6 @@ class GmailSender:
                     Hi <strong>{name}</strong>, <br><br>
                     {greeting}
                 </p>
-
                 <div style="background-color: #f9f9f9; border-left: 4px solid #2e7d32; padding: 20px; margin-bottom: 30px;">
                     <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #555;">{account_details}</h3>
                     <table width="100%" style="font-size: 15px; line-height: 2;">
@@ -153,9 +172,7 @@ class GmailSender:
                         </tr>
                     </table>
                 </div>
-
                 <p style="margin: 0 0 20px 0; line-height: 1.6; font-size: 16px;">{whats_next}</p>
-
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
                     <tr>
                         <td align="center">
@@ -163,7 +180,6 @@ class GmailSender:
                         </td>
                     </tr>
                 </table>
-
                 <div style="margin-top: 30px; padding: 15px; background-color: #fff9c4; border-radius: 5px; text-align: center;">
                     <p style="margin: 0; font-size: 14px; color: #f57f17;">
                         <strong>🔒 {security_label}</strong> {security_tip}
@@ -171,7 +187,6 @@ class GmailSender:
                 </div>
             </td>
         </tr>
-
         <tr>
             <td style="padding: 30px; background-color: #eeeeee; text-align: center; font-size: 12px; color: #777777;">
                 <p style="margin: 0 0 10px 0;">&copy; 2026 SeedSense | Bengaluru, India</p>
@@ -215,7 +230,6 @@ class GmailSender:
                 <h1 style="margin: 0; color: #ffffff; font-size: 28px; letter-spacing: 1px;">SeedSense</h1>
             </td>
         </tr>
-
         <tr>
             <td style="padding: 40px 30px;">
                 <h2 style="margin: 0 0 20px 0; color: #2e7d32; font-size: 24px;">Password Reset Request</h2>
@@ -223,13 +237,11 @@ class GmailSender:
                     Hi <strong>{name}</strong>, <br><br>
                     We received a request to reset your password for your <strong>SeedSense</strong> account. Click the button below to set a new password.
                 </p>
-
                 <div style="background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 15px 20px; margin-bottom: 25px;">
                     <p style="margin: 0; font-size: 14px; color: #e65100;">
                         ⏰ This link will expire in <strong>15 minutes</strong>. If you didn't request this, you can safely ignore this email.
                     </p>
                 </div>
-
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
                     <tr>
                         <td align="center">
@@ -237,14 +249,12 @@ class GmailSender:
                         </td>
                     </tr>
                 </table>
-
                 <p style="margin: 25px 0 0 0; line-height: 1.6; font-size: 13px; color: #777777;">
                     If the button doesn't work, copy and paste this link into your browser:<br>
                     <span style="color: #2e7d32; word-break: break-all;">{reset_link}</span>
                 </p>
             </td>
         </tr>
-
         <tr>
             <td style="padding: 30px; background-color: #eeeeee; text-align: center; font-size: 12px; color: #777777;">
                 <p style="margin: 0 0 10px 0;">&copy; 2026 SeedSense | Bengaluru, India</p>
