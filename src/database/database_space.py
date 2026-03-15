@@ -86,3 +86,40 @@ async def delete_user_keys_from_supabase(
                 f"Supabase delete failed [{response.status_code}]: {response.text}"
             )
 
+
+async def update_user_keys_in_supabase(
+    user_id: int,
+    encrypted_private_key: str,
+    nonce: str,
+    supabase_url: str = None,
+    supabase_key: str = None
+):
+    """
+    Replaces the encrypted private key and nonce for a given user_id
+    in the Supabase `user_keys` table via a PATCH request.
+    Used during password reset to re-encrypt with the new master key.
+    """
+    url = f"{supabase_url or SUPABASE_URL}/rest/v1/user_keys?user_id=eq.{user_id}"
+    key = supabase_key or SUPABASE_SERVICE_KEY
+
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.patch(
+            url,
+            json={
+                "encrypted_private_key": encrypted_private_key,
+                "nonce": nonce
+            },
+            headers=headers
+        )
+        if response.status_code not in (200, 204):
+            raise RuntimeError(
+                f"Supabase update failed [{response.status_code}]: {response.text}"
+            )
+

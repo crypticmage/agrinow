@@ -5,16 +5,20 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from starlette import status
 from database.database import SessionLocal
-from models import Users
-from database.database_space import SUPABASE_URL, SUPABASE_SERVICE_KEY
+from models import Users, PasswordResetTokens
+from database.database_space import SUPABASE_URL, SUPABASE_SERVICE_KEY, update_user_keys_in_supabase
 from dependencies import get_current_user
 import os
 import base64
+import uuid
 import jwt
 import httpx
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
 from cryptography.exceptions import InvalidTag
+from tools.gmail import GmailSender
 
 router = APIRouter(
     prefix='/auth',
@@ -206,3 +210,213 @@ async def login(login_req: LoginRequest, db: db_dependency):
             del master_key
         if private_key_bytes:
             del private_key_bytes
+
+
+# ── Forgot Password Models ──────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    """Email address to send the password reset link to."""
+    email: str = Field(..., description="Registered email address.", examples=["john@example.com"])
+
+
+class ResetPasswordRequest(BaseModel):
+    """New password with the reset token from the email link."""
+    token: str = Field(..., description="The UUID reset token from the email link.")
+    new_password: str = Field(..., description="The new password to set.", min_length=6)
+
+
+# ── POST /auth/forgot-password ───────────────────────────────────────────────
+
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_200_OK,
+    summary="Request a password reset email",
+    description=(
+        "Sends a password reset link to the user's registered email.\n\n"
+        "Always returns a success message regardless of whether the email exists, "
+        "to prevent user enumeration attacks."
+    ),
+    responses={
+        200: {"description": "Reset email sent (or silently ignored if email not found)."},
+    }
+)
+async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_dependency):
+    # Always return the same message to prevent user enumeration
+    generic_response = {"message": "If an account with that email exists, a reset link has been sent."}
+
+    user = db.query(Users).filter(Users.email == body.email).first()
+    if not user or not user.is_active:
+        return generic_response
+
+    # Generate a unique reset token
+    reset_token = str(uuid.uuid4())
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    token_record = PasswordResetTokens(
+        user_id=user.id,
+        token=reset_token,
+        expires_at=expires_at,
+        used=False,
+    )
+    db.add(token_record)
+    db.commit()
+
+    # Build the reset link using the request's base URL
+    base_url = str(req.base_url).rstrip("/")
+    reset_link = f"{base_url}/reset-password?token={reset_token}"
+
+    # Send the reset email
+    try:
+        gmail_client = GmailSender()
+        gmail_client.send_reset_email(
+            sender="crypticmage00@gmail.com",
+            to=user.email,
+            name=f"{user.first_name} {user.last_name}",
+            reset_link=reset_link,
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to send reset email: {e}")
+
+    return generic_response
+
+
+# ── POST /auth/reset-password ────────────────────────────────────────────────
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_200_OK,
+    summary="Reset password using a valid token",
+    description=(
+        "Validates the reset token, then:\n\n"
+        "1. Generates a **new Ed25519 key pair**.\n"
+        "2. Derives a new 32-byte master key via Argon2id from the new password.\n"
+        "3. AES-GCM encrypts the new private key.\n"
+        "4. Updates the **public key** in PostgreSQL.\n"
+        "5. Replaces the **encrypted private key + nonce** in Supabase.\n"
+        "6. Marks the token as used.\n"
+    ),
+    responses={
+        200: {"description": "Password reset successful."},
+        400: {"description": "Token is invalid, expired, or already used."},
+        500: {"description": "Server misconfiguration or key vault error."},
+    }
+)
+async def reset_password(body: ResetPasswordRequest, db: db_dependency):
+    # Validate the reset token
+    token_record = db.query(PasswordResetTokens).filter(
+        PasswordResetTokens.token == body.token
+    ).first()
+
+    if not token_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token."
+        )
+    if token_record.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset token has already been used."
+        )
+    # SQLite stores naive datetimes, so compare without tzinfo
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    if token_record.expires_at < now_utc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset token has expired. Please request a new one."
+        )
+
+    # Fetch the user
+    user = db.query(Users).filter(Users.id == token_record.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User associated with this token no longer exists."
+        )
+
+    # Fetch required secrets
+    argon2_pepper_str = os.getenv("ARGON2_SECRET_PEPPER")
+    argon2_ad_str     = os.getenv("ARGON2_ASSOCIATED_DATA")
+    if not argon2_pepper_str or not argon2_ad_str:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server misconfiguration: required secrets are missing."
+        )
+
+    argon2_pepper = argon2_pepper_str.encode("utf-8")
+    argon2_ad     = argon2_ad_str.encode("utf-8")
+
+    master_key = None
+    private_key = None
+    private_bytes = None
+
+    try:
+        # 1. Derive new master key from the new password
+        salt = user.email.encode("utf-8")
+        kdf = Argon2id(
+            salt=salt,
+            length=32,
+            iterations=2,
+            lanes=4,
+            memory_cost=65536,
+            ad=argon2_ad,
+            secret=argon2_pepper,
+        )
+        master_key = kdf.derive(body.new_password.encode("utf-8"))
+
+        # 2. Generate new Ed25519 key pair
+        private_key = ed25519.Ed25519PrivateKey.generate()
+        public_key = private_key.public_key()
+
+        public_bytes = public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw
+        )
+        private_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+
+        # 3. AES-GCM encrypt the new private key
+        aesgcm = AESGCM(master_key)
+        nonce = os.urandom(12)
+        encrypted_private_key = aesgcm.encrypt(nonce, private_bytes, None)
+
+        # Encode to base64
+        b64_public_key = base64.b64encode(public_bytes).decode("utf-8")
+        b64_encrypted_private_key = base64.b64encode(encrypted_private_key).decode("utf-8")
+        b64_nonce = base64.b64encode(nonce).decode("utf-8")
+
+        # 4. Update public key in PostgreSQL
+        user.public_key = b64_public_key
+        db.flush()
+
+        # 5. Replace encrypted private key + nonce in Supabase
+        await update_user_keys_in_supabase(
+            user_id=user.id,
+            encrypted_private_key=b64_encrypted_private_key,
+            nonce=b64_nonce,
+        )
+
+        # 6. Mark token as used
+        token_record.used = True
+        db.commit()
+
+        return {"message": "Password has been reset successfully. You can now log in with your new password."}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Password reset failed: {e}"
+        )
+    finally:
+        if hasattr(body, "new_password") and body.new_password:
+            pwd_len = len(body.new_password)
+            body.new_password = "\x00" * pwd_len
+        if master_key:
+            del master_key
+        if private_key:
+            del private_key
+        if private_bytes:
+            del private_bytes

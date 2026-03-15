@@ -93,6 +93,14 @@ async def register_form(request: Request):
 async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
+@app.get("/forgot-password", response_class=HTMLResponse, summary="Forgot password form", description="Serves the forgot password page.", include_in_schema=False)
+async def forgot_password_page(request: Request):
+    return templates.TemplateResponse("forgot_password.html", {"request": request})
+
+@app.get("/reset-password", response_class=HTMLResponse, summary="Reset password form", description="Serves the password reset page.", include_in_schema=False)
+async def reset_password_page(request: Request):
+    return templates.TemplateResponse("reset_password.html", {"request": request})
+
 @app.get("/users-page", response_class=HTMLResponse, summary="Users dashboard", description="Serves the users listing dashboard (requires JWT in localStorage).", include_in_schema=False)
 async def users_page(request: Request):
     return templates.TemplateResponse("users.html", {"request": request})
