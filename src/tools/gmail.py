@@ -247,9 +247,11 @@ class GmailSender:
             sent_message = self.service.users().messages().send(userId="me", body=create_message).execute()
             print(f"Success! Email sent. Message ID: {sent_message.get('id')}")
             return sent_message.get('id')
-        except Exception as e:
-            print(f"Error: {e}")
-            return None
+        except Exception as email_err:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Email failed: {str(email_err)}"  # ← show real error
+            )
 
     async def send_reset_email(self, sender, to, name, reset_link):
         subject = "Reset Your SeedSense Password"
