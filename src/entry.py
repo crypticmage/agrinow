@@ -65,11 +65,16 @@ async def log_requests(request: Request, call_next):
         with open(log_file, "a", encoding='utf-8') as f:
             f.write(f"[ERROR] {request.method} {request.url.path} - Exception: {str(e)}\n")
         raise
-    
+        
+origins = [
+    "https://cmstage.rakshitr.co.in",
+    "https://api-stage.rakshitr.co.in",
+    "http://localhost:3000", # Good for local testing
+]
 # Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",  
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],  
     allow_headers=["*"],  
