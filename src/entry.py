@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 load_dotenv(env_path)
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 from fastapi.responses import HTMLResponse
@@ -30,7 +31,15 @@ def verify_api_key(api_key: str = Depends(api_key_header)):
             detail="Could not validate API Key"
         )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Runs ONCE on startup
+    models.Base.metadata.create_all(bind=engine)
+    yield
+    # Cleanup on shutdown (optional)
+
 app = FastAPI(
+    lifespan=lifespan,
     # dependencies=[Depends(verify_api_key)], # For now we will stop this API Key thing (Full admele madona)
     title="Agrinow API",
     version="1.0.0",
@@ -46,29 +55,16 @@ app = FastAPI(
     contact={"name": "Agrinow Engineering"},
     license_info={"name": "Proprietary"},
 )
-# ── Observability & Logging ──────────────────────────────────────────────────
-ENABLE_LOCAL_LOGS = os.getenv("ENABLE_LOCAL_LOGS", "true").lower() == "true"
-LOGFIRE_TOKEN = os.getenv("LOGFIRE_TOKEN")
-PASSENGER_LOG = os.path.join(os.path.dirname(__file__), "..", "passenger_error.log")
 
-def log_local(msg):
-    if ENABLE_LOCAL_LOGS:
-        try:
-            with open(PASSENGER_LOG, "a", encoding='utf-8') as f:
-                f.write(msg + "\n")
-        except:
-            pass
+LOGFIRE_TOKEN = os.getenv("LOGFIRE_TOKEN")
+
+
 
 # Initialize Logfire only if token is provided
 if LOGFIRE_TOKEN:
     logfire.configure(token=LOGFIRE_TOKEN)
     logfire.instrument_fastapi(app)
     logfire.instrument_httpx()
-    log_local("[STARTUP] Logfire initialized")
-else:
-    log_local("[STARTUP] Logfire skipped (no token found)")
-
-log_local("[STARTUP] FastAPI app object created")
 
 # Middleware to log all requests
 @app.middleware("http")
@@ -94,8 +90,7 @@ app.add_middleware(
 # Templates for the registration form
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
-# Create all DB tables if they don't exist
-models.Base.metadata.create_all(bind=engine)
+# models.Base.metadata.create_all(bind=engine)  # MOVED TO LIFESPAN
 
 @app.get("/", summary="Health check", description="Returns a simple liveness message confirming the API is running.")
 async def root():

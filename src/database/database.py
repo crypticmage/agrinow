@@ -14,6 +14,11 @@ if not DATABASE_URL:
 
 Base = declarative_base()
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,     # recycle stale connections
+    pool_size=5,            # number of connections to keep open
+    max_overflow=10         # maximum overflow connections
+)
 logfire.instrument_sqlalchemy(engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
