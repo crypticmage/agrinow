@@ -137,6 +137,81 @@ class GmailSender:
             print(f"❌ Error: {e}")
             return None
 
+    def send_reset_email(self, sender, to, name, reset_link):
+        subject = "Reset Your SeedSense Password"
+        content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333333;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; margin-top: 20px; margin-bottom: 20px; border-radius: 8px; overflow: hidden; box-shadow: 0px 4px 10px rgba(0,0,0,0.05);">
+        <tr>
+            <td align="center" style="padding: 40px 0 30px 0; background-color: #2e7d32;">
+                <h1 style="margin: 0; color: #ffffff; font-size: 28px; letter-spacing: 1px;">SeedSense</h1>
+            </td>
+        </tr>
+
+        <tr>
+            <td style="padding: 40px 30px;">
+                <h2 style="margin: 0 0 20px 0; color: #2e7d32; font-size: 24px;">Password Reset Request</h2>
+                <p style="margin: 0 0 20px 0; line-height: 1.6; font-size: 16px;">
+                    Hi <strong>{name}</strong>, <br><br>
+                    We received a request to reset your password for your <strong>SeedSense</strong> account. Click the button below to set a new password.
+                </p>
+
+                <div style="background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 15px 20px; margin-bottom: 25px;">
+                    <p style="margin: 0; font-size: 14px; color: #e65100;">
+                        ⏰ This link will expire in <strong>15 minutes</strong>. If you didn't request this, you can safely ignore this email.
+                    </p>
+                </div>
+
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                        <td align="center">
+                            <a href="{reset_link}" style="background-color: #2e7d32; color: #ffffff; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">🔑 Reset My Password</a>
+                        </td>
+                    </tr>
+                </table>
+
+                <p style="margin: 25px 0 0 0; line-height: 1.6; font-size: 13px; color: #777777;">
+                    If the button doesn't work, copy and paste this link into your browser:<br>
+                    <span style="color: #2e7d32; word-break: break-all;">{reset_link}</span>
+                </p>
+            </td>
+        </tr>
+
+        <tr>
+            <td style="padding: 30px; background-color: #eeeeee; text-align: center; font-size: 12px; color: #777777;">
+                <p style="margin: 0 0 10px 0;">&copy; 2026 SeedSense | Bengaluru, India</p>
+                <p style="margin: 0;">You received this email because a password reset was requested for your account.</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>"""
+
+        message = EmailMessage()
+        message.set_content(content, subtype='html')
+        message['To'] = to
+        message['From'] = sender
+        message['Subject'] = subject
+
+        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+        create_message = {
+            'raw': encoded_message
+        }
+
+        try:
+            sent_message = self.service.users().messages().send(userId="me", body=create_message).execute()
+            print(f"✅ Password reset email sent. Message ID: {sent_message.get('id')}")
+            return sent_message.get('id')
+        except Exception as e:
+            print(f"❌ Error sending reset email: {e}")
+            return None
+
 if __name__ == '__main__':
     # You can still test it directly if you run this file!
     gmail_client = GmailSender()

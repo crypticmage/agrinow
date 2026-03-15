@@ -58,6 +58,17 @@ class UserLogs(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, server_default=func.now())
 
+class PasswordResetTokens(Base):
+    """Stores password reset tokens"""
+    __tablename__ = "password_reset_tokens"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    token = Column(String(255), unique=True, index=True)
+    expires_at = Column(DateTime)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class Images(Base):
     __tablename__ = "images"
     id = Column(Integer, primary_key=True, autoincrement=True)
