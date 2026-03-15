@@ -146,7 +146,10 @@ async def login(login_req: LoginRequest, db: db_dependency):
 
         # 4. Fetch encrypted private key + nonce from Supabase
         supabase_url = os.getenv("SUPABASE_URL", SUPABASE_URL)
+        if supabase_url: supabase_url = supabase_url.encode('ascii', 'ignore').decode('ascii').strip().strip('"').strip("'")
+        
         supabase_key = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_SERVICE_KEY)
+        if supabase_key: supabase_key = supabase_key.encode('ascii', 'ignore').decode('ascii').strip().strip('"').strip("'")
 
         async with httpx.AsyncClient() as client:
             resp = await client.get(

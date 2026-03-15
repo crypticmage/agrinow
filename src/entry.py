@@ -60,6 +60,45 @@ LOGFIRE_TOKEN = os.getenv("LOGFIRE_TOKEN")
 
 
 
+import logging
+
+# ── Local File Logging + Console Output ────────────────────────────────────────
+log_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "passenger_error.log")
+
+class DualLoggerWriter:
+    """Writes to both original stream (like Uvicorn console) AND to a local file."""
+    def __init__(self, original_stream, filename):
+        self.original_stream = original_stream
+        self.filename = filename
+
+    def write(self, message):
+        self.original_stream.write(message)
+        if message.strip():
+            try:
+                with open(self.filename, 'a', encoding='utf-8') as f:
+                    from datetime import datetime
+                    f.write(f"[{datetime.now()}] {message.strip()}\n")
+            except Exception:
+                pass
+
+    def flush(self):
+        self.original_stream.flush()
+
+# Capture all print() statements and Uvicorn tracebacks into the local file
+sys.stdout = DualLoggerWriter(sys.stdout, log_file_path)
+sys.stderr = DualLoggerWriter(sys.stderr, log_file_path)
+
+# Capture standard python logs (like httpx) into the local file
+logging.basicConfig(
+    handlers=[logging.FileHandler(log_file_path, encoding='utf-8')],
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+
+# Specifically enable httpx logging to see all HTTP requests in the text file
+httpx_logger = logging.getLogger("httpx")
+httpx_logger.setLevel(logging.INFO)
+
 # Initialize Logfire only if token is provided
 if LOGFIRE_TOKEN:
     import logfire

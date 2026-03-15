@@ -1,6 +1,12 @@
 import sys
 import os
 
+# ── Must be FIRST before any other imports ────────────────────────────────────
+os.environ["PYTHONIOENCODING"] = "utf-8"
+os.environ["PYTHONUTF8"] = "1"
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
 base_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, base_dir)
 sys.path.insert(0, os.path.join(base_dir, "src"))
@@ -21,7 +27,6 @@ try:
     from entry import app
     log_msg("[OK] FastAPI app imported")
     
-    # Standard HTTP status reason phrases
     HTTP_STATUS_PHRASES = {
         200: "OK", 201: "Created", 204: "No Content",
         301: "Moved Permanently", 302: "Found", 304: "Not Modified",
@@ -55,13 +60,11 @@ try:
 
             # ── 2. Convert WSGI environ headers → ASGI header list ──
             headers = []
-            # Content-Type and Content-Length are special in WSGI
             ct = environ.get('CONTENT_TYPE')
             if ct:
                 headers.append((b'content-type', ct.encode('latin-1')))
             if content_length:
                 headers.append((b'content-length', str(content_length).encode('latin-1')))
-            # All other HTTP_* keys
             for key, value in environ.items():
                 if key.startswith('HTTP_'):
                     header_name = key[5:].replace('_', '-').lower().encode('latin-1')
@@ -82,7 +85,6 @@ try:
                 'client': (environ.get('REMOTE_ADDR', '127.0.0.1'), int(environ.get('REMOTE_PORT', 0) or 0)),
             }
             
-            # Variables to store response
             resp_status = 200
             resp_headers = []
             body_parts = []
@@ -100,35 +102,43 @@ try:
                 elif message['type'] == 'http.response.body':
                     body = message.get('body', b'')
                     if body:
+                        #e body is always bytes
+                        if isinstance(body, str):
+                            body = body.encode('utf-8')
                         body_parts.append(body)
             
             async def run_app():
                 await app(scope, receive, send)
             
-            # Run the ASGI app
             asyncio.run(run_app())
             
-            # Prepare headers for WSGI
+            # ── 4. Build WSGI headers ──
             wsgi_headers = [
                 (name.decode('latin-1') if isinstance(name, bytes) else name,
                  value.decode('latin-1') if isinstance(value, bytes) else value)
                 for name, value in resp_headers
             ]
-            
-            # Build correct status line (e.g. "200 OK", "422 Unprocessable Entity")
+
+         
+            has_content_type = any(
+                (n.lower() if isinstance(n, str) else n.decode().lower()) == 'content-type'
+                for n, v in wsgi_headers
+            )
+            if not has_content_type:
+                wsgi_headers.append(('Content-Type', 'application/json; charset=utf-8'))
+
             reason = HTTP_STATUS_PHRASES.get(resp_status, "Unknown")
             start_response(f"{resp_status} {reason}", wsgi_headers)
             
             log_msg(f"[RESPONSE] {method} {path} - Status: {resp_status}")
             
-            # Return body parts
             return body_parts if body_parts else [b'']
             
         except Exception as e:
             log_msg(f"[ERROR] {type(e).__name__}: {str(e)}")
             import traceback
             log_msg(traceback.format_exc())
-            start_response('500 Internal Server Error', [('Content-Type', 'text/plain')])
+            start_response('500 Internal Server Error', [('Content-Type', 'text/plain; charset=utf-8')])
             return [b'Internal Server Error']
     
     log_msg("[OK] WSGI application ready")

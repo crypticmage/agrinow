@@ -5,12 +5,13 @@ from dotenv import load_dotenv
 # Load .env relative to this file's path (agrinow/src/database/database.py -> agrinow/.env)
 env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
 load_dotenv(env_path)
-# === Supabase REST API Configuration (Key Vault — DB2) ===
-# Credentials loaded from .env locally or Render environment variables in production
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.getenv(
-    "SUPABASE_SERVICE_KEY"
-)
+def _clean_secret(val: str) -> str:
+    if not val:
+        return val
+    return val.encode('ascii', 'ignore').decode('ascii').strip().strip('"').strip("'")
+
+SUPABASE_URL = _clean_secret(os.getenv("SUPABASE_URL"))
+SUPABASE_SERVICE_KEY = _clean_secret(os.getenv("SUPABASE_SERVICE_KEY"))
 
 
 async def store_user_keys_in_supabase(
