@@ -50,6 +50,10 @@ class GmailSender:
                 creds = Credentials.from_authorized_user_info(token_json, self.scopes)
             except json.JSONDecodeError as e:
                 print(f"Failed to parse GMAIL_TOKEN_FILE JSON: {e}")
+                print(f"Raw value first 100 chars: {self.token_data[:100]}")  # ← see actual value
+            raise
+        if not creds:
+            raise RuntimeError("Gmail credentials could not be loaded. Check GMAIL_TOKEN_FILE in .env")
 
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:

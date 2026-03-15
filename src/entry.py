@@ -125,6 +125,25 @@ templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "t
 async def root():
     return {"message": "Agrinow API is running 🌾"}
 
+@app.get("/debug/http")
+async def debug_http():
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get("https://translate.googleapis.com")
+            return {"status": r.status_code, "reachable": True}
+    except Exception as e:
+        return {"reachable": False, "error": str(e)}
+
+@app.get("/debug/env")
+async def debug_env():
+    token = os.getenv("GMAIL_TOKEN_FILE", "NOT SET")
+    return {
+        "first_50_chars": token[:50],
+        "starts_with": token[0] if token else "empty",
+        "length": len(token)
+    }
+    
 @app.get("/register", response_class=HTMLResponse, summary="Registration form", description="Serves the HTML user-registration page.", include_in_schema=False)
 async def register_form(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
