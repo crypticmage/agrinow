@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database.database import engine
 import models
 from routers import create_user, auth, users, sites, images
-import logfire
+
 
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=True)
 
@@ -62,27 +62,17 @@ LOGFIRE_TOKEN = os.getenv("LOGFIRE_TOKEN")
 
 # Initialize Logfire only if token is provided
 if LOGFIRE_TOKEN:
+    import logfire
     logfire.configure(token=LOGFIRE_TOKEN)
     logfire.instrument_fastapi(app)
-    logfire.instrument_httpx()
+    # logfire.instrument_httpx()
 
-# Middleware to log all requests
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    log_local(f"[REQUEST] {request.method} {request.url.path}")
-    try:
-        response = await call_next(request)
-        log_local(f"[RESPONSE] {request.method} {request.url.path} - Status: {response.status_code}")
-        return response
-    except Exception as e:
-        log_local(f"[ERROR] {request.method} {request.url.path} - Exception: {str(e)}")
-        raise
-    
+
 # Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=".*",  
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],  
     allow_headers=["*"],  
 )

@@ -56,7 +56,7 @@ class GmailSender:
             result = await translator.translate(text, dest=lang_code)
             return result.text
         except Exception as e:
-            print(f"⚠️ Translation failed for '{lang_code}': {e}. Falling back to English.")
+            print(f"Translation failed for '{lang_code}': {e}. Falling back to English.")
             return text
 #     def send_email(self, sender, to, name, role, hire_date,language):
 #         subject = "Welcome to the Revolution: You’re officially part of SeedSense!"
@@ -245,10 +245,10 @@ class GmailSender:
         try:
             # UserID="me" refers to the authenticated user
             sent_message = self.service.users().messages().send(userId="me", body=create_message).execute()
-            print(f"✅ Success! Email sent. Message ID: {sent_message.get('id')}")
+            print(f"Success! Email sent. Message ID: {sent_message.get('id')}")
             return sent_message.get('id')
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"Error: {e}")
             return None
 
     async def send_reset_email(self, sender, to, name, reset_link):
@@ -320,10 +320,10 @@ class GmailSender:
 
         try:
             sent_message = self.service.users().messages().send(userId="me", body=create_message).execute()
-            print(f"✅ Password reset email sent. Message ID: {sent_message.get('id')}")
+            print(f"Password reset email sent. Message ID: {sent_message.get('id')}")
             return sent_message.get('id')
         except Exception as e:
-            print(f"❌ Error sending reset email: {e}")
+            print(f"Error sending reset email: {e}")
             return None
 
 if __name__ == '__main__':

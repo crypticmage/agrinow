@@ -282,7 +282,7 @@ async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_depe
             reset_link=reset_link,
         )
     except Exception as e:
-        print(f"⚠️ Failed to send reset email: {e}")
+        print(f"Warning: Failed to send reset email: {e}")
 
     return generic_response
 
