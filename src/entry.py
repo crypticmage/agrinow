@@ -46,29 +46,40 @@ app = FastAPI(
     contact={"name": "Agrinow Engineering"},
     license_info={"name": "Proprietary"},
 )
-# ── Logfire Observability ─────────────────────────────────────────────────────
-logfire.configure()
-logfire.instrument_fastapi(app)
-logfire.instrument_httpx()
+# ── Observability & Logging ──────────────────────────────────────────────────
+ENABLE_LOCAL_LOGS = os.getenv("ENABLE_LOCAL_LOGS", "true").lower() == "true"
+LOGFIRE_TOKEN = os.getenv("LOGFIRE_TOKEN")
+PASSENGER_LOG = os.path.join(os.path.dirname(__file__), "..", "passenger_error.log")
 
-log_file = os.path.join(os.path.dirname(__file__), "..", "passenger_error.log")
+def log_local(msg):
+    if ENABLE_LOCAL_LOGS:
+        try:
+            with open(PASSENGER_LOG, "a", encoding='utf-8') as f:
+                f.write(msg + "\n")
+        except:
+            pass
 
-with open(log_file, "a", encoding='utf-8') as f:
-    f.write("[STARTUP] FastAPI app object created\n")
+# Initialize Logfire only if token is provided
+if LOGFIRE_TOKEN:
+    logfire.configure(token=LOGFIRE_TOKEN)
+    logfire.instrument_fastapi(app)
+    logfire.instrument_httpx()
+    log_local("[STARTUP] Logfire initialized")
+else:
+    log_local("[STARTUP] Logfire skipped (no token found)")
+
+log_local("[STARTUP] FastAPI app object created")
 
 # Middleware to log all requests
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    with open(log_file, "a", encoding='utf-8') as f:
-        f.write(f"[REQUEST] {request.method} {request.url.path}\n")
+    log_local(f"[REQUEST] {request.method} {request.url.path}")
     try:
         response = await call_next(request)
-        with open(log_file, "a", encoding='utf-8') as f:
-            f.write(f"[RESPONSE] {request.method} {request.url.path} - Status: {response.status_code}\n")
+        log_local(f"[RESPONSE] {request.method} {request.url.path} - Status: {response.status_code}")
         return response
     except Exception as e:
-        with open(log_file, "a", encoding='utf-8') as f:
-            f.write(f"[ERROR] {request.method} {request.url.path} - Exception: {str(e)}\n")
+        log_local(f"[ERROR] {request.method} {request.url.path} - Exception: {str(e)}")
         raise
     
 # Configure CORS Middleware
