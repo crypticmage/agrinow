@@ -27,21 +27,38 @@ class GmailSender:
         creds = None
         import json
         
+        # Helper to clean up env variables that might be wrapped in single/double quotes by the server/bash
+        def _clean_json_str(s):
+            if not s: return s
+            s = s.strip()
+            # If the entire JSON object is wrapped in single or double quotes, strip them
+            if s.startswith("'") and s.endswith("'"): s = s[1:-1]
+            if s.startswith('"') and s.endswith('"') and s.startswith('"{') and s.endswith('}"'): s = s[1:-1]
+            # Unescape backslash quotes if they exist
+            s = s.replace("\\'", "'")
+            # If they used single quotes instead of double quotes for JSON keys (invalid JSON but common typo)
+            return s
+        
         # If we have token data in the environment, use it directly (no file reading)
         if self.token_data:
-            token_json = json.loads(self.token_data)
-            creds = Credentials.from_authorized_user_info(token_json, self.scopes)
+            clean_token = _clean_json_str(self.token_data)
+            try:
+                token_json = json.loads(clean_token)
+                creds = Credentials.from_authorized_user_info(token_json, self.scopes)
+            except json.JSONDecodeError as e:
+                print(f"Failed to parse GMAIL_TOKEN_FILE JSON: {e}")
 
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                client_config = json.loads(self.client_secret_data)
-                flow = InstalledAppFlow.from_client_config(
-                    client_config, self.scopes)
-
-                # Request offline access so we get a refresh token that doesn't expire quickly
-                creds = flow.run_local_server(port=self.port, access_type='offline', prompt='consent')
+                clean_secret = _clean_json_str(self.client_secret_data)
+                try:
+                    client_config = json.loads(clean_secret)
+                    flow = InstalledAppFlow.from_client_config(client_config, self.scopes)
+                    creds = flow.run_local_server(port=self.port, access_type='offline', prompt='consent')
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse GMAIL_CLIENT_SECRET_FILE JSON: {e}")
 
         return build('gmail', 'v1', credentials=creds)
 
