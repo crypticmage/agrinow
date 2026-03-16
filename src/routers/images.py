@@ -8,6 +8,7 @@ Handles:
 """
 
 import io
+import base64
 from typing import Annotated, List, Optional
 from datetime import datetime
 
@@ -18,7 +19,7 @@ from sqlalchemy.orm import Session
 from starlette import status
 
 from database.database import SessionLocal   # SQLAlchemy session (from database.py)
-from models import Images                    # ORM model  (from models.py)
+from models import Images, ImagesTemplate    # ORM models (from models.py)
 from dependencies import get_current_user    # JWT auth dependency
 
 
@@ -151,6 +152,30 @@ async def upload_image(db: db_dependency, file: UploadFile = File(...), current_
     db.commit()
     db.refresh(record)
 
+    # 4. Generate base64 thumbnail (256x256) and store in `images_template`
+    try:
+        with Image.open(io.BytesIO(compressed_bytes)) as img:
+            thumb_fmt = detected_fmt.upper()
+            if thumb_fmt == "JPEG" and img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            img.thumbnail((256, 256))
+            thumb_buf = io.BytesIO()
+            img.save(thumb_buf, format=thumb_fmt, **_COMPRESS_SETTINGS.get(thumb_fmt, {}))
+            thumb_bytes = thumb_buf.getvalue()
+            thumb_b64 = base64.b64encode(thumb_bytes).decode("utf-8")
+
+        thumb_record = ImagesTemplate(
+            image_id=record.id,
+            file_name=file.filename,
+            data=thumb_b64,
+            format=detected_fmt[:10],
+            size=len(thumb_bytes),
+        )
+        db.add(thumb_record)
+        db.commit()
+    except Exception:
+        pass  # thumbnail generation failure should not block the upload
+
     return record
 
 
@@ -197,34 +222,47 @@ def list_images(
         .all()
     )
     return [ImageMeta.model_validate(row._asdict()) for row in rows]
-# ─────────────────────────────────────────────────────────────────────────────
-#  GET /images/{image_id}  — stream the actual image
-# ─────────────────────────────────────────────────────────────────────────────
-# @router.get(
-#     "/{image_id}",
-#     summary="Stream an image by ID",
-#     description=(
-#         "Fetches the BLOB from the `images` table and returns it as a binary "
-#         "image response — renders directly in the browser."
-#     ),
-#     responses={
-#         200: {"content": {"image/*": {}}, "description": "Raw image bytes"},
-#         404: {"description": "Image not found"},
-#     },
-# )
-# async def get_image(image_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
-#     record = db.query(Images).filter(Images.id == image_id).first()
-#     if not record:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail=f"No image found with id={image_id}",
-#         )
 
-#     fmt = (record.format or "jpeg").lower()
-#     if fmt == "jpg":
-#         fmt = "jpeg"
 
-#     return Response(content=record.data, media_type=f"image/{fmt}")
+# ─────────────────────────────────────────────────────────────────────────────
+#  GET /images/base/{image_id}  — fast base64 thumbnail preview
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get(
+    "/base/{image_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Get base64 thumbnail for fast preview",
+    description=(
+        "Returns the base64-encoded thumbnail from `images_template` for fast "
+        "preview rendering. Much lighter than streaming the full HD BLOB."
+    ),
+)
+async def get_image_base(
+    image_id: int,
+    db: db_dependency,
+    current_user: dict = Depends(get_current_user),
+):
+    row = (
+        db.query(ImagesTemplate.data, ImagesTemplate.format)
+        .filter(ImagesTemplate.image_id == image_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No thumbnail found for image id={image_id}",
+        )
+
+    fmt = (row.format or "jpeg").lower().replace("jpg", "jpeg")
+    return {
+        "image_id": image_id,
+        "format": fmt,
+        "data_uri": f"data:image/{fmt};base64,{row.data}",
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  GET /images/{image_id}  — stream the actual HD image
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 @router.get("/{image_id}"  ,  summary="Stream an image by ID",

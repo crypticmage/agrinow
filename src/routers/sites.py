@@ -87,6 +87,20 @@ def get_my_assignments(db: db_dependency, current_user: dict = Depends(get_curre
         }
         for a in assignments
     ]
+    
+@router.get("/all-assignments", status_code=status.HTTP_200_OK)
+def get_all_assignments(db: db_dependency, current_user: dict = Depends(get_current_user)):
+    """Fetch all site assignment rows in the system (for managers/admins)."""
+    assignments = db.query(SiteAssignments).all()
+    return [
+        {
+            "id": a.id,
+            "user_id": a.user_id,
+            "site_id": a.site_id,
+            "assigned_date": str(a.assigned_date) if a.assigned_date else None,
+        }
+        for a in assignments
+    ]
 
 @router.post("/", response_model=SiteResponse, status_code=status.HTTP_201_CREATED)
 def create_site(site_request: SiteCreate, db: db_dependency, current_user: dict = Depends(get_current_user)):

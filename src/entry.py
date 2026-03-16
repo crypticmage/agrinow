@@ -99,12 +99,15 @@ logging.basicConfig(
 httpx_logger = logging.getLogger("httpx")
 httpx_logger.setLevel(logging.INFO)
 
-# Initialize Logfire only if token is provided
+# Initialize Logfire only if token is provided and package is installed
 if LOGFIRE_TOKEN:
-    import logfire
-    logfire.configure(token=LOGFIRE_TOKEN)
-    logfire.instrument_fastapi(app)
-    # logfire.instrument_httpx()
+    try:
+        import logfire
+        logfire.configure(token=LOGFIRE_TOKEN)
+        logfire.instrument_fastapi(app)
+        # logfire.instrument_httpx()
+    except ImportError:
+        pass
 
 
 # Configure CORS Middleware
@@ -191,6 +194,10 @@ async def view_image_page(request: Request):
 @app.get("/site-chat", response_class=HTMLResponse, summary="Site Chat UI", include_in_schema=False)
 async def site_chat_page(request: Request):
     return templates.TemplateResponse("site_chat.html", {"request": request})
+
+@app.get("/fast-preview", response_class=HTMLResponse, summary="Fast Image Preview", include_in_schema=False)
+async def fast_preview_page(request: Request):
+    return templates.TemplateResponse("fast_preview.html", {"request": request})
 
 @app.get("/debug")
 async def debug_connections():

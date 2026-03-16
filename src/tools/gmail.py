@@ -1,8 +1,6 @@
 import os
 import base64
 import json
-import ast
-import re
 from email.message import EmailMessage
 from fastapi import HTTPException
 from google.auth.transport.requests import Request
@@ -23,54 +21,35 @@ class GmailSender:
         self.port = port
         self.service = self._get_gmail_service()
 
-    def _clean_json_str(self, s):
-        """Normalize JSON string — handles single quotes, bare keys, outer wrapping."""
-        if not s: return s
-        s = s.strip()
+    def _load_json(self, value):
+        """Load JSON from a file path or raw JSON string."""
+        if not value:
+            raise RuntimeError(f"Value is empty or not set.")
 
-        # Strip outer single quotes if wrapped
-        if s.startswith("'") and s.endswith("'"):
-            s = s[1:-1]
+        # ✅ If it's a file path — read the file directly
+        if os.path.isfile(value):
+            with open(value, 'r', encoding='utf-8') as f:
+                return json.load(f)
 
-        # Try json.loads first — already valid JSON
+        # ✅ Fallback — treat as raw JSON string
         try:
-            json.loads(s)
-            return s
-        except json.JSONDecodeError:
-            pass
-
-        # Try ast.literal_eval — handles Python dict with single-quoted keys
-        try:
-            parsed = ast.literal_eval(s)
-            return json.dumps(parsed)
-        except Exception:
-            pass
-
-        # Fix bare unquoted keys: {token: abc} → {"token": "abc"}
-        try:
-            fixed = s
-            # Add quotes around unquoted keys
-            fixed = re.sub(r'(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', fixed)
-            # Add quotes around unquoted string values
-            fixed = re.sub(r':\s*([^",\{\}\[\]\d][^,\}\]]*?)(\s*[,\}])', r':"\1"\2', fixed)
-            parsed = json.loads(fixed)
-            return json.dumps(parsed)
-        except Exception:
-            pass
-
-        return s  # fallback — return as-is
+            return json.loads(value)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Not a valid file path and not valid JSON. "
+                f"Error: {e} | "
+                f"first_100_chars: {value[:100]}"
+            )
 
     def _get_gmail_service(self):
         creds = None
 
         if self.token_data:
-            clean_token = self._clean_json_str(self.token_data)
             try:
-                token_json = json.loads(clean_token)
+                token_json = self._load_json(self.token_data)
                 creds = Credentials.from_authorized_user_info(token_json, self.scopes)
-            except json.JSONDecodeError as e:
-                print(f"Failed to parse GMAIL_TOKEN_FILE JSON: {e}")
-                print(f"Raw value first 100 chars: {self.token_data[:100]}")
+            except Exception as e:
+                raise RuntimeError(f"Failed to load GMAIL_TOKEN_FILE: {e}")
 
         if not creds:
             raise RuntimeError("Gmail credentials could not be loaded. Check GMAIL_TOKEN_FILE in .env")
@@ -79,26 +58,20 @@ class GmailSender:
             if creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                clean_secret = self._clean_json_str(self.client_secret_data)
                 try:
-                    client_config = json.loads(clean_secret)
+                    client_config = self._load_json(self.client_secret_data)
                     flow = InstalledAppFlow.from_client_config(client_config, self.scopes)
                     creds = flow.run_local_server(port=self.port, access_type='offline', prompt='consent')
-                except json.JSONDecodeError as e:
-                    print(f"Failed to parse GMAIL_CLIENT_SECRET_FILE JSON: {e}")
-                    raise RuntimeError("Gmail client secret could not be loaded. Check GMAIL_CLIENT_SECRET_FILE in .env")
+                except Exception as e:
+                    raise RuntimeError(f"Failed to load GMAIL_CLIENT_SECRET_FILE: {e}")
 
         return build('gmail', 'v1', credentials=creds)
 
     async def _translate_text(self, text, language):
-        """Translate text to target language. Falls back to English on any error."""
         lang_code = language.strip().lower()
-
-        # Skip translation for English
         if not lang_code or lang_code == "en" or lang_code == "english":
             return text
 
-        # Convert language name to code if needed (e.g. "kannada" → "kn")
         LANGUAGE_NAMES = {v: k for k, v in LANGUAGES.items()}
         lang_code = LANGUAGE_NAMES.get(lang_code, lang_code)
 
@@ -114,7 +87,6 @@ class GmailSender:
             return text
 
     async def send_email(self, sender, to, name, role, hire_date, language="en"):
-        """Sends a translatable welcome email to new users."""
         lang = language.strip().lower()
 
         subject         = await self._translate_text("Welcome to the Revolution: You're officially part of SeedSense!", lang)

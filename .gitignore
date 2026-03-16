@@ -4,3 +4,5 @@ agrinow.db
 *.log
 *.pyc
 *.db
+gmail_token.json
+gmail_secret.json

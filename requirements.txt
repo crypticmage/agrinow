@@ -14,7 +14,4 @@ google-auth-oauthlib
 a2wsgi
 pillow
 python-multipart
-logfire
-logfire[sqlalchemy]
-logfire[httpx]
 googletrans

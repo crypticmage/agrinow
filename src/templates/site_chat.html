@@ -760,6 +760,16 @@
             }
         }
 
+        // Fetch a thumbnail (base64) for fast preview
+        async function loadThumbnail(imageId) {
+            try {
+                const res = await fetch(`/images/base/${imageId}`, { headers: headers() });
+                if (!res.ok) return null;
+                const data = await res.json();
+                return data.data_uri;
+            } catch (e) { return null; }
+        }
+
         // Fetch an image with auth header and return a blob URL
         async function loadAuthImage(imageId) {
             try {
@@ -816,15 +826,20 @@
             chatMessages.innerHTML = html;
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
-            // Now load all images with auth and set blob URLs
+            // Load thumbnails first (instant retrieval)
             const uniqueImageIds = [...new Set(imageComments)];
             for (const imgId of uniqueImageIds) {
-                loadAuthImage(imgId).then(blobUrl => {
-                    if (!blobUrl) return;
+                loadThumbnail(imgId).then(dataUri => {
+                    if (!dataUri) return;
                     document.querySelectorAll(`img[data-image-id="${imgId}"]`).forEach(img => {
-                        img.src = blobUrl;
+                        img.src = dataUri;
                         img.style.minHeight = '';
-                        img.onclick = () => openLightbox(blobUrl);
+                        img.style.cursor = 'zoom-in';
+                        
+                        // When clicked, open the Fast Preview page
+                        img.onclick = () => {
+                            window.open(`/fast-preview?id=${imgId}`, '_blank');
+                        };
                     });
                 });
             }
@@ -968,7 +983,13 @@
         });
 
         // ─── Init ───
-        loadSites();
+        loadSites().then(() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const siteId = urlParams.get('site_id');
+            if (siteId) {
+                selectSite(parseInt(siteId));
+            }
+        });
     </script>
 </body>
 </html>

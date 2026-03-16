@@ -2,6 +2,8 @@ from database.database import Base
 from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateTime, Text, LargeBinary
 from sqlalchemy.sql import func
 from sqlalchemy.orm import deferred
+from sqlalchemy.dialects.mysql import LONGTEXT as MySQL_LONGTEXT
+LongText = Text().with_variant(MySQL_LONGTEXT(), "mysql")
 
 class Users(Base):
     __tablename__ = "users"
@@ -74,6 +76,16 @@ class Images(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     file_name = Column(String(255))
     data = deferred(Column(LargeBinary(length=4294967295)))
+    format = Column(String(10))
+    size = Column(Integer)
+    created_at = Column(DateTime, server_default=func.now())
+
+class ImagesTemplate(Base):
+    __tablename__ = "images_template"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    image_id = Column(Integer, ForeignKey("images.id"), index=True)
+    file_name = Column(String(255))
+    data = deferred(Column(LongText))
     format = Column(String(10))
     size = Column(Integer)
     created_at = Column(DateTime, server_default=func.now())

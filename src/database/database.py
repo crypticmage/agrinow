@@ -23,8 +23,11 @@ LOGFIRE_TOKEN = os.getenv("LOGFIRE_TOKEN")
 
 
 
-# Initialize Logfire only if token is provided
+# Initialize Logfire only if token is provided and package is installed
 if LOGFIRE_TOKEN:
-    import logfire
-    logfire.instrument_sqlalchemy(engine)
+    try:
+        import logfire
+        logfire.instrument_sqlalchemy(engine)
+    except ImportError:
+        pass
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
