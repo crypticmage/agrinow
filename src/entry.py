@@ -128,24 +128,24 @@ templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "t
 async def root():
     return {"message": "Agrinow API is running 🌾"}
 
-@app.get("/debug/http")
-async def debug_http():
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get("https://translate.googleapis.com")
-            return {"status": r.status_code, "reachable": True}
-    except Exception as e:
-        return {"reachable": False, "error": str(e)}
+# @app.get("/debug/http")
+# async def debug_http():
+#     import httpx
+#     try:
+#         async with httpx.AsyncClient(timeout=5) as client:
+#             r = await client.get("https://translate.googleapis.com")
+#             return {"status": r.status_code, "reachable": True}
+#     except Exception as e:
+#         return {"reachable": False, "error": str(e)}
 
-@app.get("/debug/env")
-async def debug_env():
-    token = os.getenv("GMAIL_TOKEN_FILE", "NOT SET")
-    return {
-        "first_50_chars": token[:50],
-        "starts_with": token[0] if token else "empty",
-        "length": len(token)
-    }
+# @app.get("/debug/env")
+# async def debug_env():
+#     token = os.getenv("GMAIL_TOKEN_FILE", "NOT SET")
+#     return {
+#         "first_50_chars": token[:50],
+#         "starts_with": token[0] if token else "empty",
+#         "length": len(token)
+#     }
     
 @app.get("/register", response_class=HTMLResponse, summary="Registration form", description="Serves the HTML user-registration page.", include_in_schema=False)
 async def register_form(request: Request):
@@ -199,49 +199,49 @@ async def site_chat_page(request: Request):
 async def fast_preview_page(request: Request):
     return templates.TemplateResponse("fast_preview.html", {"request": request})
 
-@app.get("/debug")
-async def debug_connections():
-    """Tests PostgreSQL and Supabase connections independently."""
-    import httpx
-    import sqlalchemy
-    from database.database import SessionLocal
-    from database.database_space import SUPABASE_URL, SUPABASE_SERVICE_KEY
-    results = {}
+# @app.get("/debug")
+# async def debug_connections():
+#     """Tests PostgreSQL and Supabase connections independently."""
+#     import httpx
+#     import sqlalchemy
+#     from database.database import SessionLocal
+#     from database.database_space import SUPABASE_URL, SUPABASE_SERVICE_KEY
+#     results = {}
 
-    # --- Test 1: Primary DB (PostgreSQL on Render) ---
-    try:
-        db = SessionLocal()
-        db.execute(sqlalchemy.text("SELECT 1"))
-        db.close()
+#     # --- Test 1: Primary DB (PostgreSQL on Render) ---
+#     try:
+#         db = SessionLocal()
+#         db.execute(sqlalchemy.text("SELECT 1"))
+#         db.close()
         
-        # Also let's check what tables are in the DB
-        inspector = sqlalchemy.inspect(engine)
-        tables = inspector.get_table_names()
+#         # Also let's check what tables are in the DB
+#         inspector = sqlalchemy.inspect(engine)
+#         tables = inspector.get_table_names()
         
-        results["primary_db"] = {"status": "ok", "message": "Connected successfully", "tables": tables}
-    except Exception as e:
-        results["primary_db"] = {"status": "error", "message": str(e)}
+#         results["primary_db"] = {"status": "ok", "message": "Connected successfully", "tables": tables}
+#     except Exception as e:
+#         results["primary_db"] = {"status": "error", "message": str(e)}
 
-    # --- Test 2: Supabase REST (key vault) ---
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{SUPABASE_URL}/rest/v1/user_keys?limit=1",
-                headers={
-                    "apikey": SUPABASE_SERVICE_KEY,
-                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"
-                },
-                timeout=5
-            )
-        results["supabase_rest"] = {
-            "status": "ok" if resp.status_code < 400 else "error",
-            "http_status": resp.status_code,
-            "message": resp.text[:200]
-        }
-    except Exception as e:
-        results["supabase_rest"] = {"status": "error", "message": str(e)}
+#     # --- Test 2: Supabase REST (key vault) ---
+#     try:
+#         async with httpx.AsyncClient() as client:
+#             resp = await client.get(
+#                 f"{SUPABASE_URL}/rest/v1/user_keys?limit=1",
+#                 headers={
+#                     "apikey": SUPABASE_SERVICE_KEY,
+#                     "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"
+#                 },
+#                 timeout=5
+#             )
+#         results["supabase_rest"] = {
+#             "status": "ok" if resp.status_code < 400 else "error",
+#             "http_status": resp.status_code,
+#             "message": resp.text[:200]
+#         }
+#     except Exception as e:
+#         results["supabase_rest"] = {"status": "error", "message": str(e)}
 
-    return results
+#     return results
 
 app.include_router(create_user.router)
 app.include_router(auth.router)
