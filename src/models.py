@@ -1,5 +1,5 @@
 from database.database import Base
-from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateTime, Text, LargeBinary
+from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateTime, Text, LargeBinary, Float
 from sqlalchemy.sql import func
 from sqlalchemy.orm import deferred
 from sqlalchemy.dialects.mysql import LONGTEXT as MySQL_LONGTEXT
@@ -22,6 +22,7 @@ class Users(Base):
     relive_date = Column(Date)
     created_dt = Column(Date)
     emp_type = Column(String(255))
+    force_logout_at = Column(DateTime, nullable=True)
 
 
 class Sites(Base):
@@ -31,6 +32,8 @@ class Sites(Base):
     site_description = Column(Text)
     created_date = Column(Date)
     close_date = Column(Date, nullable=True)
+    latitude   = Column(Float, nullable=True)
+    longitude  = Column(Float, nullable=True)
 
 
 class SiteAssignments(Base):
@@ -54,11 +57,14 @@ class SiteComments(Base):
     timestamp = Column(DateTime, server_default=func.now())
 
 class UserLogs(Base):
-    """Stores user login/logout activity"""
+    """Stores user activity audit log"""
     __tablename__ = "user_logs"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    timestamp = Column(DateTime, server_default=func.now())
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id"), nullable=True)  # nullable for failed logins
+    action      = Column(String(64), nullable=False, default="login")     # e.g. login, logout, password_changed
+    description = Column(String(512), nullable=True)                       # optional extra detail
+    ip_address  = Column(String(45), nullable=True)                        # IPv4 or IPv6
+    timestamp   = Column(DateTime, server_default=func.now())
 
 class PasswordResetTokens(Base):
     """Stores password reset tokens"""
@@ -89,3 +95,16 @@ class ImagesTemplate(Base):
     format = Column(String(10))
     size = Column(Integer)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class AttendanceLog(Base):
+    """Daily attendance: one row per user per day, check-in/out with GPS."""
+    __tablename__ = "attendance_logs"
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    date       = Column(Date, nullable=False, index=True)
+    check_in   = Column(DateTime, nullable=True)
+    check_out  = Column(DateTime, nullable=True)
+    latitude   = Column(Float, nullable=True)
+    longitude  = Column(Float, nullable=True)
+    notes      = Column(String(512), nullable=True)

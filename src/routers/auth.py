@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, load_only
 from starlette import status
 from database.database import SessionLocal
-from models import Users, PasswordResetTokens
+from models import Users, PasswordResetTokens, UserLogs
 from database.database_space import SUPABASE_URL, SUPABASE_SERVICE_KEY, update_user_keys_in_supabase
 from dependencies import get_current_user
 import os
@@ -24,6 +24,19 @@ router = APIRouter(
     prefix='/auth',
     tags=['Authentication'],
 )
+
+
+def _log(db: Session, action: str, user_id: int | None = None, description: str | None = None, request: Request | None = None):
+    """Fire-and-forget audit log. Never raises — silently rolls back on failure."""
+    try:
+        ip = None
+        if request:
+            forwarded = request.headers.get("x-forwarded-for")
+            ip = forwarded.split(",")[0].strip() if forwarded else request.client.host if request.client else None
+        db.add(UserLogs(user_id=user_id, action=action, description=description, ip_address=ip))
+        db.commit()
+    except Exception:
+        db.rollback()
 
 ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 #token excperis afgter one hout
@@ -92,7 +105,7 @@ class TokenResponse(BaseModel):
         500: {"description": "Server misconfiguration or key vault error."},
     }
 )
-async def login(login_req: LoginRequest, db: db_dependency):
+async def login(login_req: LoginRequest, db: db_dependency, response: Response, request: Request):
 
     # 1. Fetch required secrets
     argon2_pepper_str = os.getenv("ARGON2_SECRET_PEPPER")
@@ -116,11 +129,13 @@ async def login(login_req: LoginRequest, db: db_dependency):
     ).first()
 
     if not user:
+        _log(db, "login_failed", description=f"Unknown identifier: {login_req.identifier}", request=request)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found."
         )
     if not user.is_active:
+        _log(db, "login_failed", user_id=user.id, description="Account inactive", request=request)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive."
@@ -177,6 +192,7 @@ async def login(login_req: LoginRequest, db: db_dependency):
             aesgcm = AESGCM(master_key)
             private_key_bytes = aesgcm.decrypt(nonce, encrypted_private_key, None)
         except InvalidTag:
+            _log(db, "login_failed", user_id=user.id, description="Wrong password", request=request)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials."
@@ -193,13 +209,16 @@ async def login(login_req: LoginRequest, db: db_dependency):
         }
         token = jwt.encode(payload, jwt_secret, algorithm=ALGORITHM)
 
-        try: # This will add the login to the user_logs table
-            from models import UserLogs
-            new_log = UserLogs(user_id=user.id)
-            db.add(new_log)
-            db.commit()
-        except:
-            db.rollback()
+        _log(db, "login", user_id=user.id, request=request)
+
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {token}",
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
 
         return TokenResponse(
             access_token=token,
@@ -257,7 +276,20 @@ async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_depe
     )).filter(Users.email == body.email).first()
     if not user or not user.is_active:
         return generic_response
+    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
 
+    recent_password_reset = (
+        db.query(PasswordResetTokens).options(load_only(PasswordResetTokens.id))
+        .filter(
+            PasswordResetTokens.user_id == user.id,
+            PasswordResetTokens.used == True,
+            PasswordResetTokens.created_at >= twenty_four_hours_ago
+        )
+        .first()
+    )
+    if recent_password_reset:
+        return {"message": "You have already changes the password today. Please Try again after 24 hours"}
+    
     # Generate a unique reset token
     reset_token = str(uuid.uuid4())
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -270,12 +302,16 @@ async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_depe
     )
     db.add(token_record)
     db.commit()
+    _log(db, "forgot_password_requested", user_id=user.id, request=req)
 
     # Build the reset link using the request's base URL
-    base_url = str(req.base_url).rstrip("/")
+    # Example logic
+    forwarded_host = req.headers.get("x-forwarded-host")
+    base_url = f"https://{forwarded_host}" if forwarded_host else str(req.base_url).rstrip("/")
     reset_link = f"{base_url}/reset-password?token={reset_token}"
 
     # Send the reset email
+    # print(reset_link)
     try:
         gmail_client = GmailSender()
         await gmail_client.send_reset_email(
@@ -413,6 +449,7 @@ async def reset_password(body: ResetPasswordRequest, db: db_dependency):
         # 6. Mark token as used
         token_record.used = True
         db.commit()
+        _log(db, "password_reset", user_id=user.id)
 
         return {"message": "Password has been reset successfully. You can now log in with your new password."}
 
@@ -435,7 +472,8 @@ async def reset_password(body: ResetPasswordRequest, db: db_dependency):
 
 
 class ChangePasswordRequest(BaseModel):
-    """New password for a logged-in user."""
+    """Current and new password for a logged-in user."""
+    current_password: str = Field(..., description="The user's current password for verification.")
     new_password: str = Field(..., description="The brand-new password to set.", min_length=6)
 
 
@@ -447,16 +485,24 @@ class ChangePasswordRequest(BaseModel):
     summary="Update password for the current user",
     description=(
         "Allows the logged-in user to change their password securely.\n\n"
-        "1. Generates a **new Ed25519 key pair**.\n"
-        "2. Derives a new master key via Argon2id from the new password.\n"
-        "3. AES-GCM encrypts the new private key.\n"
-        "4. Updates the **public key** in PostgreSQL.\n"
-        "5. Replaces the **encrypted private key + nonce** in Supabase.\n"
+        "1. Verifies the **current password** by re-deriving its master key and attempting AES-GCM decryption.\n"
+        "2. Generates a **new Ed25519 key pair**.\n"
+        "3. Derives a new master key via Argon2id from the new password.\n"
+        "4. AES-GCM encrypts the new private key.\n"
+        "5. Updates the **public key** in PostgreSQL.\n"
+        "6. Replaces the **encrypted private key + nonce** in Supabase.\n"
     ),
+    responses={
+        200: {"description": "Password updated successfully."},
+        401: {"description": "Current password is incorrect."},
+        404: {"description": "User not found."},
+        500: {"description": "Server misconfiguration or key vault error."},
+    },
 )
 async def change_password(
-    body: ChangePasswordRequest, 
-    db: db_dependency, 
+    body: ChangePasswordRequest,
+    request: Request,
+    db: db_dependency,
     current_user: dict = Depends(get_current_user)
 ):
     user_id = int(current_user.get("sub"))
@@ -481,12 +527,63 @@ async def change_password(
     argon2_ad     = argon2_ad_str.encode("utf-8")
 
     master_key = None
+    current_master_key = None
     private_key = None
     private_bytes = None
 
     try:
-        # 1. Derive new master key from the new password
         salt = user.email.encode("utf-8")
+
+        # 1. Verify current password by re-deriving its master key and decrypting the stored private key
+        kdf_current = Argon2id(
+            salt=salt,
+            length=32,
+            iterations=2,
+            lanes=4,
+            memory_cost=65536,
+            ad=argon2_ad,
+            secret=argon2_pepper,
+        )
+        current_master_key = kdf_current.derive(body.current_password.encode("utf-8"))
+
+        supabase_url = os.getenv("SUPABASE_URL", SUPABASE_URL)
+        if supabase_url: supabase_url = supabase_url.encode('ascii', 'ignore').decode('ascii').strip().strip('"').strip("'")
+
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_SERVICE_KEY)
+        if supabase_key: supabase_key = supabase_key.encode('ascii', 'ignore').decode('ascii').strip().strip('"').strip("'")
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{supabase_url}/rest/v1/user_keys",
+                params={"user_id": f"eq.{user.id}", "limit": "1"},
+                headers={
+                    "apikey": supabase_key,
+                    "Authorization": f"Bearer {supabase_key}",
+                },
+                timeout=5,
+            )
+
+        if resp.status_code != 200 or not resp.json():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not retrieve key data from vault."
+            )
+
+        key_row = resp.json()[0]
+        encrypted_private_key_stored = base64.b64decode(key_row["encrypted_private_key"])
+        nonce_stored                 = base64.b64decode(key_row["nonce"])
+
+        try:
+            aesgcm_verify = AESGCM(current_master_key)
+            aesgcm_verify.decrypt(nonce_stored, encrypted_private_key_stored, None)
+        except InvalidTag:
+            _log(db, "change_password_failed", user_id=user.id, description="Wrong current password", request=request)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect."
+            )
+
+        # 2. Derive new master key from the new password
         kdf = Argon2id(
             salt=salt,
             length=32,
@@ -498,7 +595,7 @@ async def change_password(
         )
         master_key = kdf.derive(body.new_password.encode("utf-8"))
 
-        # 2. Generate new Ed25519 key pair
+        # 3. Generate new Ed25519 key pair
         private_key = ed25519.Ed25519PrivateKey.generate()
         public_key = private_key.public_key()
 
@@ -512,7 +609,7 @@ async def change_password(
             encryption_algorithm=serialization.NoEncryption()
         )
 
-        # 3. AES-GCM encrypt the new private key
+        # 4. AES-GCM encrypt the new private key
         aesgcm = AESGCM(master_key)
         nonce = os.urandom(12)
         encrypted_private_key = aesgcm.encrypt(nonce, private_bytes, None)
@@ -522,11 +619,11 @@ async def change_password(
         b64_encrypted_private_key = base64.b64encode(encrypted_private_key).decode("utf-8")
         b64_nonce = base64.b64encode(nonce).decode("utf-8")
 
-        # 4. Update public key in PostgreSQL
+        # 5. Update public key in PostgreSQL
         user.public_key = b64_public_key
         db.flush()
 
-        # 5. Replace encrypted private key + nonce in Supabase
+        # 6. Replace encrypted private key + nonce in Supabase
         await update_user_keys_in_supabase(
             user_id=user.id,
             encrypted_private_key=b64_encrypted_private_key,
@@ -534,8 +631,12 @@ async def change_password(
         )
 
         db.commit()
+        _log(db, "password_changed", user_id=user.id, request=request)
         return {"message": "Password updated successfully."}
 
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -544,9 +645,12 @@ async def change_password(
         )
     finally:
         # Wipe sensitive values
+        if hasattr(body, "current_password") and body.current_password:
+            body.current_password = "\x00" * len(body.current_password)
         if hasattr(body, "new_password") and body.new_password:
-            pwd_len = len(body.new_password)
-            body.new_password = "\x00" * pwd_len
+            body.new_password = "\x00" * len(body.new_password)
+        if current_master_key:
+            del current_master_key
         if master_key:
             del master_key
         if private_key:

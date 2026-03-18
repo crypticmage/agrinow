@@ -146,10 +146,15 @@ def get_manager_dropdown(
 
 class UserLogResponse(BaseModel):
     id: int
-    user_id: int
-    username: str
+    user_id: Optional[int]
+    username: Optional[str]
+    first_name: Optional[str]
+    last_name: Optional[str]
+    action: str
+    description: Optional[str]
+    ip_address: Optional[str]
     timestamp: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 @router.get(
@@ -164,15 +169,27 @@ def get_user_logs(
     current_user: dict = Depends(get_current_user),
 ):
     from models import UserLogs
-    logs = db.query(UserLogs, Users.username).join(Users, UserLogs.user_id == Users.id).order_by(UserLogs.timestamp.desc()).limit(limit).all()
-    
+    # Outer join because user_id might be null for failed logins
+    logs = (
+        db.query(UserLogs, Users.username, Users.first_name, Users.last_name)
+        .outerjoin(Users, UserLogs.user_id == Users.id)
+        .order_by(UserLogs.timestamp.desc())
+        .limit(limit)
+        .all()
+    )
+
     results = []
-    for log, username in logs:
+    for log, username, first_name, last_name in logs:
         results.append({
             "id": log.id,
             "user_id": log.user_id,
-            "username": username,
-            "timestamp": log.timestamp
+            "username": username or None,
+            "first_name": first_name or None,
+            "last_name": last_name or None,
+            "action": log.action,
+            "description": log.description,
+            "ip_address": log.ip_address,
+            "timestamp": log.timestamp,
         })
     return results
 
@@ -280,6 +297,39 @@ async def delete_user(
     db.delete(user)
     db.commit()
     return {"message": "User deleted successfully from all databases"}
+
+
+# ── POST /users/{user_id}/force-logout ────────────────────────────────────────
+
+@router.post(
+    "/{user_id}/force-logout",
+    status_code=status.HTTP_200_OK,
+    summary="Force-logout a user (admin only)",
+)
+def force_logout_user(
+    user_id: int,
+    db: db_dependency,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
+
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    user.force_logout_at = datetime.utcnow()
+    db.commit()
+
+    from models import UserLogs
+    db.add(UserLogs(
+        user_id=int(current_user.get("sub")),
+        action="force_logout",
+        description=f"Admin force-logged-out user #{user_id} ({user.username})",
+    ))
+    db.commit()
+
+    return {"message": f"User {user.username} has been force-logged out."}
 
 
 # ── GET /users/org ────────────────────────────────────────────────────────────

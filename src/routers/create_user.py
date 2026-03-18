@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
 from starlette import status
 from database.database import SessionLocal
-from models import Users
+from models import Users, UserLogs
 from database.database_space import store_user_keys_in_supabase
 import os
 import base64
@@ -203,6 +203,19 @@ async def create_user(req: Request, user_req: CreateUserRequest, db: db_dependen
 
             # Only commit D1 if Supabase insert succeeded — both DBs are now in sync
             db.commit()
+
+            # Log user creation
+            try:
+                actor_id = int(current_user.get("sub")) if current_user else None
+                db.add(UserLogs(
+                    user_id=actor_id,
+                    action="user_created",
+                    description=f"Created user '{user_model.username}' (id={user_model.id}, role={user_model.role})",
+                    ip_address=(req.headers.get("x-forwarded-for", "").split(",")[0].strip() or (req.client.host if req.client else None)),
+                ))
+                db.commit()
+            except Exception:
+                db.rollback()
 
             # 3. Send welcome email (Non-critical — don't crash if email fails)
             try:

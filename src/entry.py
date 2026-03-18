@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from database.database import engine
 import models
-from routers import create_user, auth, users, sites, images
+from routers import create_user, auth, users, sites, images, attendance
 
 
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=True)
@@ -113,10 +113,13 @@ if LOGFIRE_TOKEN:
 # Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",  
-    allow_credentials=False,
-    allow_methods=["*"],  
-    allow_headers=["*"],  
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Templates for the registration form
@@ -248,3 +251,4 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(sites.router)
 app.include_router(images.router)
+app.include_router(attendance.router)

@@ -1,13 +1,28 @@
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from starlette import status
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 
 from database.database import SessionLocal
 from models import Sites, SiteAssignments, SiteComments, Users
 from dependencies import get_current_user
+from tools.gmail import GmailSender
+
+async def send_site_assignment_notification(email: str, name: str, site_name: str, assigned_date: str, language: str):
+    try:
+        sender = GmailSender()
+        await sender.send_site_assignment_email(
+            sender=sender.smtp_username,
+            to=email,
+            name=name,
+            site_name=site_name,
+            assigned_date=assigned_date,
+            language=language
+        )
+    except Exception as e:
+        print(f"Background email failed: {e}")
 
 router = APIRouter(
     prefix='/sites',
@@ -29,6 +44,8 @@ class SiteCreate(BaseModel):
     site_description: str
     created_date: date
     close_date: Optional[date] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 class SiteResponse(SiteCreate):
     id: int
@@ -53,6 +70,10 @@ class SiteCommentResponse(BaseModel):
     id: int
     site_user_relation_id: int
     user_id: int
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    role: Optional[str] = None
     comment: str
     image_id: Optional[int] = None
     type: Optional[str] = None
@@ -117,10 +138,15 @@ def get_all_sites(db: db_dependency, current_user: dict = Depends(get_current_us
     return db.query(Sites).all()
 
 @router.post("/assign", response_model=SiteAssignmentResponse, status_code=status.HTTP_201_CREATED)
-def assign_user_to_site(assign_req: SiteAssignmentCreate, db: db_dependency, current_user: dict = Depends(get_current_user)):
+def assign_user_to_site(
+    assign_req: SiteAssignmentCreate,
+    background_tasks: BackgroundTasks,
+    db: db_dependency,
+    current_user: dict = Depends(get_current_user)
+):
     """Assign a user to a specific site."""
     # Validate user exists
-    user = db.query(Users).filter(Users.id == assign_req.user_id).first()
+    user = db.query(Users).options(load_only(Users.id, Users.email, Users.first_name, Users.username, Users.language)).filter(Users.id == assign_req.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
@@ -133,6 +159,17 @@ def assign_user_to_site(assign_req: SiteAssignmentCreate, db: db_dependency, cur
     db.add(new_assignment)
     db.commit()
     db.refresh(new_assignment)
+
+    if user.email:
+        background_tasks.add_task(
+            send_site_assignment_notification,
+            user.email,
+            user.first_name or user.username,
+            site.site_name,
+            str(new_assignment.assigned_date),
+            user.language or "en"
+        )
+        
     return new_assignment
 
 @router.post("/comments", response_model=SiteCommentResponse, status_code=status.HTTP_201_CREATED)
@@ -156,11 +193,66 @@ def add_site_comment(comment_req: SiteCommentCreate, db: db_dependency, current_
     db.refresh(new_comment)
     return new_comment
 
+@router.get("/assignments/user/{user_id}", status_code=status.HTTP_200_OK)
+def get_user_assignments(user_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
+    """Get all site assignments for a specific user."""
+    assignments = db.query(SiteAssignments).filter(SiteAssignments.user_id == user_id).all()
+    result = []
+    for a in assignments:
+        site = db.query(Sites).filter(Sites.id == a.site_id).first()
+        result.append({
+            "id": a.id,
+            "user_id": a.user_id,
+            "site_id": a.site_id,
+            "site_name": site.site_name if site else None,
+            "assigned_date": str(a.assigned_date) if a.assigned_date else None,
+        })
+    return result
+
+@router.delete("/assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_site_assignment(assignment_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
+    """Remove a site assignment."""
+    assignment = db.query(SiteAssignments).filter(SiteAssignments.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    db.delete(assignment)
+    db.commit()
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+
 @router.get("/{site_id}/comments", response_model=List[SiteCommentResponse], status_code=status.HTTP_200_OK)
 def get_site_comments(site_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
-    """Retrieve all comments/chat for a specific site."""
-    # Join SiteComments with SiteAssignments to filter by site_id
-    comments = db.query(SiteComments).join(SiteAssignments, SiteAssignments.id == SiteComments.site_user_relation_id)\
-                 .filter(SiteAssignments.site_id == site_id)\
-                 .order_by(SiteComments.timestamp.asc()).all()
-    return comments
+    """Retrieve all comments/chat for a specific site, with user name/role and IST timestamps."""
+    comments = (
+        db.query(SiteComments)
+        .join(SiteAssignments, SiteAssignments.id == SiteComments.site_user_relation_id)
+        .filter(SiteAssignments.site_id == site_id)
+        .order_by(SiteComments.timestamp.asc())
+        .all()
+    )
+
+    # Batch-fetch users to avoid N+1
+    user_ids = list({c.user_id for c in comments})
+    users_map = {u.id: u for u in db.query(Users).filter(Users.id.in_(user_ids)).all()} if user_ids else {}
+
+    result = []
+    for c in comments:
+        u = users_map.get(c.user_id)
+        # Convert naive UTC timestamp → IST
+        ts = c.timestamp
+        if ts is not None and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc).astimezone(_IST)
+        result.append({
+            "id": c.id,
+            "site_user_relation_id": c.site_user_relation_id,
+            "user_id": c.user_id,
+            "username": u.username if u else None,
+            "first_name": u.first_name if u else None,
+            "last_name": u.last_name if u else None,
+            "role": u.role if u else None,
+            "comment": c.comment,
+            "image_id": c.image_id,
+            "type": c.type,
+            "timestamp": ts,
+        })
+    return result

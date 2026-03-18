@@ -15,3 +15,4 @@ a2wsgi
 pillow
 python-multipart
 googletrans
+alembic

@@ -248,12 +248,15 @@
                     <th>Log ID</th>
                     <th>User ID</th>
                     <th>Username</th>
+                    <th>Action</th>
+                    <th>Description</th>
+                    <th>IP Address</th>
                     <th>Timestamp (UTC)</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
                 <tr>
-                    <td colspan="5" class="empty">Loading...</td>
+                    <td colspan="7" class="empty">Loading...</td>
                 </tr>
             </tbody>
         </table>
@@ -311,7 +314,7 @@
                 const logs = await resp.json();
 
                 if (!logs.length) {
-                    body.innerHTML = `<tr><td colspan="4" class="empty">No logs found.</td></tr>`;
+                    body.innerHTML = `<tr><td colspan="7" class="empty">No logs found.</td></tr>`;
                     counter.textContent = '0 logs';
                     return;
                 }
@@ -320,18 +323,24 @@
 
                 body.innerHTML = logs.map(log => {
                     const d = new Date(log.timestamp);
+                    let badgeClass = 'badge-login';
+                    if (log.action === 'logout') badgeClass = 'badge-logout';
+                    
                     return `
                         <tr>
                             <td>${log.id}</td>
-                            <td>${log.user_id}</td>
+                            <td>${log.user_id || '—'}</td>
                             <td style="color: #f1f5f9; font-weight: 500;">@${log.username}</td>
+                            <td><span class="${badgeClass}">${log.action}</span></td>
+                            <td style="white-space: normal; max-width: 300px;">${log.description || '—'}</td>
+                            <td><code>${log.ip_address || '—'}</code></td>
                             <td>${d.toLocaleString()}</td>
                         </tr>
                     `;
                 }).join('');
 
             } catch (e) {
-                body.innerHTML = `<tr><td colspan="4" class="empty">Failed to load logs.</td></tr>`;
+                body.innerHTML = `<tr><td colspan="7" class="empty">Failed to load logs.</td></tr>`;
                 alert.className = 'error';
                 alert.textContent = `❌ ${e.message}`;
             }

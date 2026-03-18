@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agrinow API — Frontend Developer Documentation</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: #1a1a2e;
+      background: #f7f8fc;
+    }
+
+    /* ── Print tweaks ─────────────────────────────────────── */
+    @media print {
+      body { background: #fff; font-size: 12px; }
+      .no-print { display: none; }
+      .page-break { page-break-before: always; }
+      section { page-break-inside: avoid; }
+      pre { white-space: pre-wrap; }
+    }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    .wrapper { max-width: 960px; margin: 0 auto; padding: 32px 24px 80px; }
+
+    /* ── Cover page ────────────────────────────────────────── */
+    .cover {
+      background: linear-gradient(135deg, #16213e 0%, #0f3460 60%, #1a7a4a 100%);
+      color: #fff;
+      border-radius: 12px;
+      padding: 56px 48px 48px;
+      margin-bottom: 48px;
+    }
+    .cover .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .cover h1 { font-size: 36px; font-weight: 700; margin-bottom: 10px; }
+    .cover .subtitle { font-size: 15px; opacity: 0.75; margin-bottom: 32px; }
+    .cover-meta { display: flex; gap: 32px; flex-wrap: wrap; }
+    .cover-meta div { font-size: 12px; opacity: 0.65; }
+    .cover-meta strong { display: block; font-size: 14px; opacity: 1; margin-bottom: 2px; }
+
+    /* ── TOC ────────────────────────────────────────────────── */
+    .toc {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin-bottom: 40px;
+    }
+    .toc h2 { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: #0f3460; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin-bottom: 5px; }
+    .toc a { color: #0f3460; text-decoration: none; font-size: 13px; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── Section headings ───────────────────────────────────── */
+    h2.section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0f3460;
+      margin: 48px 0 6px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .section-desc { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+
+    /* ── Endpoint card ──────────────────────────────────────── */
+    .endpoint {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .endpoint-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      flex-wrap: wrap;
+    }
+    .method {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      border-radius: 5px;
+      padding: 3px 10px;
+      min-width: 60px;
+      text-align: center;
+      color: #fff;
+    }
+    .method.GET    { background: #0ea5e9; }
+    .method.POST   { background: #22c55e; }
+    .method.PUT    { background: #f59e0b; }
+    .method.DELETE { background: #ef4444; }
+    .method.PATCH  { background: #a855f7; }
+
+    .path {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .auth-badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 12px;
+      padding: 2px 10px;
+      letter-spacing: 0.4px;
+    }
+    .auth-badge.requires { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .auth-badge.public   { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .auth-badge.admin    { background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; }
+
+    .endpoint-body { padding: 16px 20px; }
+
+    .summary { font-weight: 600; color: #1e293b; margin-bottom: 6px; }
+    .description { color: #475569; font-size: 12.5px; margin-bottom: 14px; }
+
+    /* ── Tables ─────────────────────────────────────────────── */
+    .param-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
+    .param-table thead tr { background: #f1f5f9; }
+    .param-table th { text-align: left; padding: 7px 10px; font-weight: 600; color: #334155; border-bottom: 1px solid #e2e8f0; }
+    .param-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .param-table tr:last-child td { border-bottom: none; }
+    .param-table .type { font-family: monospace; color: #7c3aed; font-size: 11px; }
+    .param-table .req  { color: #ef4444; font-weight: 700; font-size: 10px; }
+    .param-table .opt  { color: #94a3b8; font-size: 10px; }
+
+    /* ── Code blocks ────────────────────────────────────────── */
+    .sub-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 11.5px;
+      overflow-x: auto;
+      margin-bottom: 14px;
+      white-space: pre;
+    }
+    .comment { color: #64748b; }
+    .key     { color: #7dd3fc; }
+    .str     { color: #86efac; }
+    .num     { color: #fda4af; }
+    .bool    { color: #fcd34d; }
+
+    /* ── Status codes ───────────────────────────────────────── */
+    .status-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+    .status-chip {
+      font-size: 11px;
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-weight: 600;
+    }
+    .s2xx { background: #dcfce7; color: #166534; }
+    .s4xx { background: #fee2e2; color: #991b1b; }
+    .s5xx { background: #fef3c7; color: #92400e; }
+
+    /* ── Info boxes ─────────────────────────────────────────── */
+    .info-box {
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      font-size: 12.5px;
+    }
+    .info-box.blue  { background: #eff6ff; border-left: 4px solid #3b82f6; color: #1e3a5f; }
+    .info-box.green { background: #f0fdf4; border-left: 4px solid #22c55e; color: #14532d; }
+    .info-box.amber { background: #fffbeb; border-left: 4px solid #f59e0b; color: #78350f; }
+    .info-box.red   { background: #fef2f2; border-left: 4px solid #ef4444; color: #7f1d1d; }
+    .info-box strong { font-weight: 700; display: block; margin-bottom: 4px; }
+
+    /* ── Inline code ────────────────────────────────────────── */
+    code {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: 'Courier New', monospace;
+      font-size: 11.5px;
+      color: #7c3aed;
+    }
+
+    /* ── Print button ────────────────────────────────────────── */
+    .print-btn {
+      position: fixed;
+      bottom: 28px; right: 28px;
+      background: #0f3460;
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      padding: 12px 24px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(15,52,96,0.35);
+      z-index: 999;
+    }
+    .print-btn:hover { background: #16213e; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- ═══════════════════════ COVER ═══════════════════════ -->
+  <div class="cover">
+    <div class="badge">API Reference v1.0.0</div>
+    <h1>Agrinow API</h1>
+    <p class="subtitle">Complete frontend developer reference for the Agrinow Agricultural Operations Platform</p>
+    <div class="cover-meta">
+      <div><strong>Base URL</strong>https://&lt;your-domain&gt;</div>
+      <div><strong>Auth Method</strong>Bearer JWT (HTTP-only cookie)</div>
+      <div><strong>Token Expiry</strong>60 minutes</div>
+      <div><strong>Date</strong>2026-03-18</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ TOC ═══════════════════════ -->
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <ol>
+      <li><a href="#overview">Overview &amp; Authentication</a></li>
+      <li><a href="#auth">Authentication Endpoints <code>/auth</code></a></li>
+      <li><a href="#user-management">User Management Endpoints <code>/create_user</code> &amp; <code>/users</code></a></li>
+      <li><a href="#sites">Sites &amp; Chat Endpoints <code>/sites</code></a></li>
+      <li><a href="#images">Image Endpoints <code>/images</code></a></li>
+      <li><a href="#error-reference">Error Reference</a></li>
+      <li><a href="#quick-start">Quick-Start Code Snippets</a></li>
+    </ol>
+  </div>
+
+  <!-- ═══════════════════════ OVERVIEW ═══════════════════════ -->
+  <h2 class="section-title" id="overview">1. Overview &amp; Authentication</h2>
+
+  <div class="info-box blue">
+    <strong>Base URL</strong>
+    All endpoints are relative to your deployment URL, e.g. <code>https://api.agrinow.in</code>. In development, this is typically <code>http://127.0.0.1:8000</code>.
+  </div>
+
+  <div class="info-box green">
+    <strong>How Authentication Works</strong>
+    1. Call <code>POST /auth/login</code> with credentials.<br/>
+    2. The server sets an <strong>HTTP-only cookie</strong> (<code>access_token</code>) and also returns the JWT in the JSON response body.<br/>
+    3. For every subsequent request, either:<br/>
+    &nbsp;&nbsp;• The cookie is sent automatically by the browser (recommended), <strong>or</strong><br/>
+    &nbsp;&nbsp;• Set the header <code>Authorization: Bearer &lt;token&gt;</code> manually (for mobile / non-browser clients).<br/>
+    4. The JWT expires after <strong>60 minutes</strong>. Re-login to get a fresh token.
+  </div>
+
+  <div class="info-box amber">
+    <strong>Roles</strong>
+    The API enforces role-based access. The possible roles are: <code>admin</code>, <code>manager</code>, <code>farmer</code>, <code>agent</code>, <code>analyst</code>.<br/>
+    The JWT payload includes a <code>role</code> field — read it after login to redirect users to the correct dashboard.
+  </div>
+
+  <div class="info-box red">
+    <strong>Zero-Knowledge Password Scheme</strong>
+    Passwords are <em>never stored</em>. The server derives a 32-byte master key from the password via Argon2id, then uses it to decrypt an Ed25519 private key stored in a separate Supabase vault. A successful decryption proves the password is correct. This means <strong>password reset cannot reveal the old password</strong> — it generates entirely new keys.
+  </div>
+
+  <!-- ═══════════════════════ AUTH ═══════════════════════ -->
+  <h2 class="section-title" id="auth">2. Authentication — <code>/auth</code></h2>
+  <p class="section-desc">Handles login, logout-cookie clearing, and the full password lifecycle.</p>
+
+  <!-- POST /auth/login -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/auth/login</span>
+      <span class="auth-badge public">Public</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Authenticate user and issue JWT</p>
+      <p class="description">
+        Validates credentials using the zero-knowledge flow. On success, sets an HTTP-only cookie
+        <code>access_token</code> and returns a JSON body with the token and user metadata.
+        If the account is inactive, returns 403. Wrong password returns 401.
+      </p>
+
+      <p class="sub-label">Request Body (JSON)</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>identifier</td><td class="type">string</td><td class="req">Required</td><td>Username <em>or</em> email address</td></tr>
+          <tr><td>password</td><td class="type">string</td><td class="req">Required</td><td>Plaintext password — stretched via Argon2id, never stored</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example Request</p>
+      <pre>{
+  <span class="key">"identifier"</span>: <span class="str">"john_doe"</span>,
+  <span class="key">"password"</span>: <span class="str">"MySecureP@ssw0rd"</span>
+}</pre>
+
+      <p class="sub-label">Success Response — 200 OK</p>
+      <pre>{
+  <span class="key">"access_token"</span>: <span class="str">"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."</span>,
+  <span class="key">"token_type"</span>: <span class="str">"bearer"</span>,
+  <span class="key">"username"</span>: <span class="str">"john_doe"</span>,
+  <span class="key">"email"</span>: <span class="str">"john@example.com"</span>,
+  <span class="key">"role"</span>: <span class="str">"farmer"</span>
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK — Login successful</span>
+        <span class="status-chip s4xx">401 Invalid credentials</span>
+        <span class="status-chip s4xx">403 Account inactive</span>
+        <span class="status-chip s4xx">404 User not found</span>
+        <span class="status-chip s5xx">500 Server misconfiguration</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /auth/forgot-password -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/auth/forgot-password</span>
+      <span class="auth-badge public">Public</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Request a password reset email</p>
+      <p class="description">
+        Sends a one-time reset link (valid 15 minutes) to the user's registered email.
+        Always returns the same success message regardless of whether the email exists, to prevent user enumeration.
+      </p>
+
+      <p class="sub-label">Request Body (JSON)</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>email</td><td class="type">string (email)</td><td class="req">Required</td><td>Registered email address</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example Request</p>
+      <pre>{
+  <span class="key">"email"</span>: <span class="str">"john@example.com"</span>
+}</pre>
+
+      <p class="sub-label">Success Response — 200 OK</p>
+      <pre>{
+  <span class="key">"message"</span>: <span class="str">"If an account with that email exists, a reset link has been sent."</span>
+}</pre>
+
+      <div class="info-box amber">
+        <strong>Frontend Note</strong>
+        Always show this exact message to the user — do not conditionally show success/error based on the response. This is a security requirement to prevent user enumeration.
+      </div>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK — (always, even if email not found)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /auth/reset-password -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/auth/reset-password</span>
+      <span class="auth-badge public">Public</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Reset password using a valid one-time token</p>
+      <p class="description">
+        Validates the UUID token from the reset email link, generates a completely new Ed25519 key pair
+        derived from the new password, and updates both the primary database and key vault.
+        The token is single-use and expires after 15 minutes.
+      </p>
+
+      <p class="sub-label">Request Body (JSON)</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>token</td><td class="type">string (UUID)</td><td class="req">Required</td><td>The reset token from the email link query param <code>?token=…</code></td></tr>
+          <tr><td>new_password</td><td class="type">string</td><td class="req">Required</td><td>New password (min 6 characters)</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example Request</p>
+      <pre>{
+  <span class="key">"token"</span>: <span class="str">"a1b2c3d4-e5f6-7890-abcd-ef1234567890"</span>,
+  <span class="key">"new_password"</span>: <span class="str">"NewSecureP@ss99"</span>
+}</pre>
+
+      <p class="sub-label">Success Response — 200 OK</p>
+      <pre>{
+  <span class="key">"message"</span>: <span class="str">"Password has been reset successfully. You can now log in with your new password."</span>
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK — Password reset successfully</span>
+        <span class="status-chip s4xx">400 Invalid / expired / already-used token</span>
+        <span class="status-chip s5xx">500 Key vault error</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /auth/change-password -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/auth/change-password</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Change password for the currently authenticated user</p>
+      <p class="description">
+        Verifies the current password, then re-keys the user's cryptographic identity with the new password.
+        The user must be logged in (valid JWT). Returns 401 if the current password is wrong.
+      </p>
+
+      <p class="sub-label">Request Body (JSON)</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>current_password</td><td class="type">string</td><td class="req">Required</td><td>The user's existing password for verification</td></tr>
+          <tr><td>new_password</td><td class="type">string</td><td class="req">Required</td><td>New password (min 6 characters)</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example Request</p>
+      <pre>{
+  <span class="key">"current_password"</span>: <span class="str">"OldPassword123"</span>,
+  <span class="key">"new_password"</span>: <span class="str">"NewPassword456!"</span>
+}</pre>
+
+      <p class="sub-label">Success Response — 200 OK</p>
+      <pre>{
+  <span class="key">"message"</span>: <span class="str">"Password updated successfully."</span>
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK — Password changed</span>
+        <span class="status-chip s4xx">401 Current password incorrect</span>
+        <span class="status-chip s4xx">404 User not found</span>
+        <span class="status-chip s5xx">500 Key vault error</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ USER MANAGEMENT ═══════════════════════ -->
+  <h2 class="section-title page-break" id="user-management">3. User Management — <code>/create_user</code> &amp; <code>/users</code></h2>
+  <p class="section-desc">Create, read, update, and delete user records. Most endpoints require a valid JWT. User creation is restricted to admins.</p>
+
+  <!-- POST /create_user/ -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/create_user/</span>
+      <span class="auth-badge admin">Admin Only</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Register a new Agrinow user</p>
+      <p class="description">
+        Creates a new user with zero-knowledge key generation. Only users with the <code>admin</code> role can call this endpoint.
+        A welcome email is sent to the new user. Returns the created user profile — no sensitive data is included.
+      </p>
+
+      <p class="sub-label">Request Body (JSON)</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>username</td><td class="type">string</td><td class="req">Required</td><td>Unique username</td></tr>
+          <tr><td>email</td><td class="type">string (email)</td><td class="req">Required</td><td>Unique email address. Used as Argon2id salt</td></tr>
+          <tr><td>password</td><td class="type">string</td><td class="req">Required</td><td>Plaintext password — stretched via Argon2id; never stored</td></tr>
+          <tr><td>first_name</td><td class="type">string</td><td class="req">Required</td><td>User's first name</td></tr>
+          <tr><td>last_name</td><td class="type">string</td><td class="req">Required</td><td>User's last name</td></tr>
+          <tr><td>language</td><td class="type">string</td><td class="req">Required</td><td>Language code: <code>en</code>, <code>hi</code>, <code>kn</code>, etc.</td></tr>
+          <tr><td>role</td><td class="type">string</td><td class="req">Required</td><td><code>admin</code> | <code>manager</code> | <code>farmer</code> | <code>agent</code> | <code>analyst</code></td></tr>
+          <tr><td>hire_date</td><td class="type">date (YYYY-MM-DD)</td><td class="req">Required</td><td>Hire date</td></tr>
+          <tr><td>phone</td><td class="type">string</td><td class="opt">Optional</td><td>Phone number</td></tr>
+          <tr><td>manager_id</td><td class="type">integer</td><td class="opt">Optional</td><td>ID of direct manager</td></tr>
+          <tr><td>relive_date</td><td class="type">date (YYYY-MM-DD)</td><td class="opt">Optional</td><td>Relieve/termination date. If set, account is marked inactive</td></tr>
+          <tr><td>emp_type</td><td class="type">string</td><td class="opt">Optional</td><td><code>full_time</code> | <code>part_time</code> | <code>contract</code> | <code>intern</code></td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example Request</p>
+      <pre>{
+  <span class="key">"username"</span>: <span class="str">"jane_farmer"</span>,
+  <span class="key">"email"</span>: <span class="str">"jane@agrinow.in"</span>,
+  <span class="key">"password"</span>: <span class="str">"SecurePass@123"</span>,
+  <span class="key">"first_name"</span>: <span class="str">"Jane"</span>,
+  <span class="key">"last_name"</span>: <span class="str">"Patel"</span>,
+  <span class="key">"language"</span>: <span class="str">"hi"</span>,
+  <span class="key">"role"</span>: <span class="str">"farmer"</span>,
+  <span class="key">"hire_date"</span>: <span class="str">"2025-01-10"</span>,
+  <span class="key">"manager_id"</span>: <span class="num">3</span>,
+  <span class="key">"emp_type"</span>: <span class="str">"full_time"</span>
+}</pre>
+
+      <p class="sub-label">Success Response — 201 Created</p>
+      <pre>{
+  <span class="key">"id"</span>: <span class="num">42</span>,
+  <span class="key">"username"</span>: <span class="str">"jane_farmer"</span>,
+  <span class="key">"email"</span>: <span class="str">"jane@agrinow.in"</span>,
+  <span class="key">"phone"</span>: <span class="bool">null</span>,
+  <span class="key">"first_name"</span>: <span class="str">"Jane"</span>,
+  <span class="key">"last_name"</span>: <span class="str">"Patel"</span>,
+  <span class="key">"language"</span>: <span class="str">"hi"</span>,
+  <span class="key">"role"</span>: <span class="str">"farmer"</span>,
+  <span class="key">"manager_id"</span>: <span class="num">3</span>,
+  <span class="key">"is_active"</span>: <span class="bool">true</span>,
+  <span class="key">"hire_date"</span>: <span class="str">"2025-01-10"</span>,
+  <span class="key">"relive_date"</span>: <span class="bool">null</span>,
+  <span class="key">"emp_type"</span>: <span class="str">"full_time"</span>,
+  <span class="key">"created_dt"</span>: <span class="str">"2026-03-18"</span>
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">201 Created</span>
+        <span class="status-chip s4xx">403 Not admin</span>
+        <span class="status-chip s4xx">409 Duplicate username or email</span>
+        <span class="status-chip s5xx">500 Key vault error</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /users/ -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/users/</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">List all users (paginated)</p>
+      <p class="description">Returns a paginated list of all user profiles. No sensitive fields are included.</p>
+
+      <p class="sub-label">Query Parameters</p>
+      <table class="param-table">
+        <thead><tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>skip</td><td class="type">integer</td><td>0</td><td>Number of records to skip (offset)</td></tr>
+          <tr><td>limit</td><td class="type">integer</td><td>50</td><td>Max records to return (recommended max: 100)</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example Request</p>
+      <pre>GET /users/?skip=0&amp;limit=20
+Authorization: Bearer eyJhbGci...</pre>
+
+      <p class="sub-label">Success Response — 200 OK (array)</p>
+      <pre>[
+  {
+    <span class="key">"id"</span>: <span class="num">1</span>,
+    <span class="key">"username"</span>: <span class="str">"john_doe"</span>,
+    <span class="key">"email"</span>: <span class="str">"john@agrinow.in"</span>,
+    <span class="key">"role"</span>: <span class="str">"admin"</span>,
+    <span class="key">"is_active"</span>: <span class="bool">true</span>,
+    <span class="key">"hire_date"</span>: <span class="str">"2023-06-01"</span>,
+    ...
+  }
+]</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Missing/invalid token</span>
+        <span class="status-chip s4xx">404 No users found</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /users/manager_dropdown -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/users/manager_dropdown</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Active users for manager dropdown</p>
+      <p class="description">Returns a lightweight list of only active users, intended for populating manager-selection dropdowns. No pagination.</p>
+
+      <p class="sub-label">Success Response — 200 OK (array)</p>
+      <pre>[
+  { <span class="key">"id"</span>: <span class="num">1</span>, <span class="key">"username"</span>: <span class="str">"john_doe"</span>, <span class="key">"first_name"</span>: <span class="str">"John"</span>, <span class="key">"last_name"</span>: <span class="str">"Doe"</span> },
+  { <span class="key">"id"</span>: <span class="num">3</span>, <span class="key">"username"</span>: <span class="str">"alice_m"</span>,  <span class="key">"first_name"</span>: <span class="str">"Alice"</span>, <span class="key">"last_name"</span>: <span class="str">"M"</span>   }
+]</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /users/logs -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/users/logs</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Get user activity audit logs</p>
+      <p class="description">Returns the most recent login/action audit logs with username resolution.</p>
+
+      <p class="sub-label">Query Parameters</p>
+      <table class="param-table">
+        <thead><tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>limit</td><td class="type">integer</td><td>100</td><td>Max number of log entries to return</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Success Response — 200 OK (array)</p>
+      <pre>[
+  {
+    <span class="key">"id"</span>: <span class="num">55</span>,
+    <span class="key">"user_id"</span>: <span class="num">7</span>,
+    <span class="key">"username"</span>: <span class="str">"jane_farmer"</span>,
+    <span class="key">"timestamp"</span>: <span class="str">"2026-03-18T09:34:12"</span>
+  }
+]</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /users/{user_id} -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/users/{user_id}</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Get a single user by ID</p>
+
+      <p class="sub-label">Path Parameters</p>
+      <table class="param-table">
+        <thead><tr><th>Param</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>user_id</td><td class="type">integer</td><td>The user's numeric ID</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK — Full UserSummary object</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">404 User not found</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PUT /users/{user_id} -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method PUT">PUT</span>
+      <span class="path">/users/{user_id}</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Update a user's record</p>
+      <p class="description">
+        Updates one or more of the following fields. All fields are optional — only provided fields are changed.
+        If <code>relive_date</code> is set to today or a past date, <code>is_active</code> is automatically set to <code>false</code>.
+      </p>
+
+      <p class="sub-label">Path Parameters</p>
+      <table class="param-table">
+        <thead><tr><th>Param</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>user_id</td><td class="type">integer</td><td>The user's numeric ID</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Request Body (JSON) — all fields optional</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>role</td><td class="type">string</td><td>New role</td></tr>
+          <tr><td>phone</td><td class="type">string</td><td>New phone number</td></tr>
+          <tr><td>is_active</td><td class="type">boolean</td><td>Manually set active status</td></tr>
+          <tr><td>relive_date</td><td class="type">date (YYYY-MM-DD)</td><td>Set relieve date (auto-deactivates if in the past)</td></tr>
+          <tr><td>manager_id</td><td class="type">integer</td><td>Set new manager</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Success Response — 200 OK</p>
+      <pre>{ <span class="key">"message"</span>: <span class="str">"User updated successfully"</span> }</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">404 User not found</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DELETE /users/{user_id} -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method DELETE">DELETE</span>
+      <span class="path">/users/{user_id}</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Delete a user from all databases</p>
+      <p class="description">
+        Permanently removes the user from both the primary PostgreSQL database and the Supabase key vault.
+        This operation is <strong>irreversible</strong>.
+      </p>
+
+      <p class="sub-label">Success Response — 200 OK</p>
+      <pre>{ <span class="key">"message"</span>: <span class="str">"User deleted successfully from all databases"</span> }</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">404 User not found</span>
+        <span class="status-chip s5xx">500 Supabase key deletion failed</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /users/org/chart -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/users/org/chart</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Get recursive organizational chart</p>
+      <p class="description">
+        Returns a nested tree structure of the organization starting from a root user.
+        Defaults to the current logged-in user if no query params are provided.
+        Only active users are included in the tree.
+      </p>
+
+      <p class="sub-label">Query Parameters</p>
+      <table class="param-table">
+        <thead><tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>username</td><td class="type">string</td><td>—</td><td>Start the org chart from this username</td></tr>
+          <tr><td>email</td><td class="type">string</td><td>—</td><td>Start the org chart from this email</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Success Response — 200 OK (recursive OrgNode)</p>
+      <pre>{
+  <span class="key">"id"</span>: <span class="num">1</span>,
+  <span class="key">"username"</span>: <span class="str">"john_doe"</span>,
+  <span class="key">"first_name"</span>: <span class="str">"John"</span>,
+  <span class="key">"last_name"</span>: <span class="str">"Doe"</span>,
+  <span class="key">"role"</span>: <span class="str">"admin"</span>,
+  <span class="key">"subordinates"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="num">3</span>,
+      <span class="key">"username"</span>: <span class="str">"alice_manager"</span>,
+      <span class="key">"role"</span>: <span class="str">"manager"</span>,
+      <span class="key">"subordinates"</span>: [...]
+    }
+  ]
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">404 User not found</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ SITES ═══════════════════════ -->
+  <h2 class="section-title page-break" id="sites">4. Sites &amp; Chat — <code>/sites</code></h2>
+  <p class="section-desc">Manage agricultural sites, assign users to sites, and send/read chat comments per site.</p>
+
+  <!-- GET /sites/my -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/sites/my</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Get all sites assigned to the current user</p>
+
+      <p class="sub-label">Success Response — 200 OK (array of SiteResponse)</p>
+      <pre>[
+  {
+    <span class="key">"id"</span>: <span class="num">5</span>,
+    <span class="key">"site_name"</span>: <span class="str">"North Farm Block A"</span>,
+    <span class="key">"site_description"</span>: <span class="str">"Wheat cultivation area"</span>,
+    <span class="key">"created_date"</span>: <span class="str">"2024-03-01"</span>,
+    <span class="key">"close_date"</span>: <span class="bool">null</span>
+  }
+]</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK — (empty array if no sites)</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /sites/my-assignments -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/sites/my-assignments</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Get all site assignment rows for the current user</p>
+      <p class="description">Returns raw assignment records including assignment IDs — useful for posting comments which require the <code>site_user_relation_id</code>.</p>
+
+      <p class="sub-label">Success Response — 200 OK (array)</p>
+      <pre>[
+  {
+    <span class="key">"id"</span>: <span class="num">12</span>,
+    <span class="key">"user_id"</span>: <span class="num">7</span>,
+    <span class="key">"site_id"</span>: <span class="num">5</span>,
+    <span class="key">"assigned_date"</span>: <span class="str">"2024-03-01"</span>
+  }
+]</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /sites/all-assignments -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/sites/all-assignments</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Get all site assignments in the system</p>
+      <p class="description">Admin/manager view — returns every user-site assignment record in the system.</p>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /sites/ -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/sites/</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">List all sites</p>
+      <p class="description">Returns every site in the system regardless of assignment.</p>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK — Array of SiteResponse</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /sites/ -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/sites/</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Create a new site</p>
+
+      <p class="sub-label">Request Body (JSON)</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>site_name</td><td class="type">string</td><td class="req">Required</td><td>Name of the site</td></tr>
+          <tr><td>site_description</td><td class="type">string</td><td class="req">Required</td><td>Description of the site</td></tr>
+          <tr><td>created_date</td><td class="type">date (YYYY-MM-DD)</td><td class="req">Required</td><td>Date the site was established</td></tr>
+          <tr><td>close_date</td><td class="type">date (YYYY-MM-DD)</td><td class="opt">Optional</td><td>Date site was/will be closed</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example Request</p>
+      <pre>{
+  <span class="key">"site_name"</span>: <span class="str">"East Orchard"</span>,
+  <span class="key">"site_description"</span>: <span class="str">"Mango plantation, 40 acres"</span>,
+  <span class="key">"created_date"</span>: <span class="str">"2026-03-18"</span>
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">201 Created — SiteResponse</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">422 Validation error</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /sites/assign -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/sites/assign</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Assign a user to a site</p>
+
+      <p class="sub-label">Request Body (JSON)</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>user_id</td><td class="type">integer</td><td class="req">Required</td><td>ID of the user to assign</td></tr>
+          <tr><td>site_id</td><td class="type">integer</td><td class="req">Required</td><td>ID of the target site</td></tr>
+          <tr><td>assigned_date</td><td class="type">date (YYYY-MM-DD)</td><td class="req">Required</td><td>Date of assignment</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Success Response — 201 Created</p>
+      <pre>{
+  <span class="key">"id"</span>: <span class="num">14</span>,
+  <span class="key">"user_id"</span>: <span class="num">7</span>,
+  <span class="key">"site_id"</span>: <span class="num">5</span>,
+  <span class="key">"assigned_date"</span>: <span class="str">"2026-03-18"</span>
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">201 Created</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">404 User or site not found</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /sites/comments -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/sites/comments</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Add a chat comment to a site assignment</p>
+      <p class="description">
+        Posts a comment tied to a user-site assignment relation. The <code>user_id</code> is set
+        automatically from the assignment record — it does <em>not</em> need to be sent.
+        Optionally attach an image by passing an uploaded image's <code>image_id</code>.
+      </p>
+
+      <p class="sub-label">Request Body (JSON)</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>site_user_relation_id</td><td class="type">integer</td><td class="req">Required</td><td>ID from the <code>/sites/my-assignments</code> response</td></tr>
+          <tr><td>comment</td><td class="type">string</td><td class="req">Required</td><td>Text content of the comment</td></tr>
+          <tr><td>image_id</td><td class="type">integer</td><td class="opt">Optional</td><td>ID of a previously uploaded image to attach</td></tr>
+          <tr><td>type</td><td class="type">string</td><td class="opt">Optional</td><td>Message type, e.g. <code>text</code> (default) or <code>image</code></td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example Request</p>
+      <pre>{
+  <span class="key">"site_user_relation_id"</span>: <span class="num">12</span>,
+  <span class="key">"comment"</span>: <span class="str">"Irrigation completed in sector 3."</span>,
+  <span class="key">"type"</span>: <span class="str">"text"</span>
+}</pre>
+
+      <p class="sub-label">Success Response — 201 Created</p>
+      <pre>{
+  <span class="key">"id"</span>: <span class="num">88</span>,
+  <span class="key">"site_user_relation_id"</span>: <span class="num">12</span>,
+  <span class="key">"user_id"</span>: <span class="num">7</span>,
+  <span class="key">"comment"</span>: <span class="str">"Irrigation completed in sector 3."</span>,
+  <span class="key">"image_id"</span>: <span class="bool">null</span>,
+  <span class="key">"type"</span>: <span class="str">"text"</span>,
+  <span class="key">"timestamp"</span>: <span class="str">"2026-03-18T11:45:00"</span>
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">201 Created</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">404 Assignment relation not found</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /sites/{site_id}/comments -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/sites/{site_id}/comments</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Get all chat comments for a site (chronological)</p>
+
+      <p class="sub-label">Path Parameters</p>
+      <table class="param-table">
+        <thead><tr><th>Param</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>site_id</td><td class="type">integer</td><td>The site's numeric ID</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Success Response — 200 OK (array, oldest first)</p>
+      <pre>[
+  {
+    <span class="key">"id"</span>: <span class="num">85</span>,
+    <span class="key">"site_user_relation_id"</span>: <span class="num">12</span>,
+    <span class="key">"user_id"</span>: <span class="num">7</span>,
+    <span class="key">"comment"</span>: <span class="str">"Site inspection done."</span>,
+    <span class="key">"image_id"</span>: <span class="num">20</span>,
+    <span class="key">"type"</span>: <span class="str">"image"</span>,
+    <span class="key">"timestamp"</span>: <span class="str">"2026-03-18T08:00:00"</span>
+  }
+]</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ IMAGES ═══════════════════════ -->
+  <h2 class="section-title page-break" id="images">5. Images — <code>/images</code></h2>
+  <p class="section-desc">Upload, list, and retrieve images stored as BLOBs in the database. Pillow compression is applied automatically on upload.</p>
+
+  <div class="info-box blue">
+    <strong>Thumbnail Strategy</strong>
+    On upload, the server automatically generates a 256×256 base64 thumbnail stored separately. Use
+    <code>GET /images/base/{id}</code> for fast previews (e.g., in chat or lists) and
+    <code>GET /images/{id}</code> only when full-resolution display is needed.
+  </div>
+
+  <!-- POST /images/ -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method POST">POST</span>
+      <span class="path">/images/</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Upload &amp; compress an image</p>
+      <p class="description">
+        Accepts a <strong>multipart/form-data</strong> upload. Compresses the image in-memory (JPEG q90, PNG lossless, WebP q90),
+        stores the BLOB, generates a 256×256 thumbnail, and returns metadata.
+        Supported formats: JPEG, PNG, WebP, GIF.
+      </p>
+
+      <p class="sub-label">Request — multipart/form-data</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>file</td><td class="type">UploadFile</td><td class="req">Required</td><td>The image file (JPEG, PNG, WebP, GIF)</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Example — JavaScript Fetch</p>
+      <pre><span class="comment">// Upload an image file from an &lt;input type="file"&gt;</span>
+const formData = new FormData();
+formData.append(<span class="str">'file'</span>, fileInputElement.files[<span class="num">0</span>]);
+
+const resp = await fetch(<span class="str">'/images/'</span>, {
+  method: <span class="str">'POST'</span>,
+  headers: { Authorization: <span class="str">`Bearer ${token}`</span> },
+  body: formData,
+});
+const meta = await resp.json();</pre>
+
+      <p class="sub-label">Success Response — 201 Created</p>
+      <pre>{
+  <span class="key">"id"</span>: <span class="num">20</span>,
+  <span class="key">"file_name"</span>: <span class="str">"farm_photo.jpg"</span>,
+  <span class="key">"format"</span>: <span class="str">"JPEG"</span>,
+  <span class="key">"size"</span>: <span class="num">84320</span>,
+  <span class="key">"created_at"</span>: <span class="str">"2026-03-18T10:22:31"</span>
+}</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">201 Created</span>
+        <span class="status-chip s4xx">400 Compression failed (invalid image)</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /images/list -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/images/list</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">List all stored images (metadata only)</p>
+      <p class="description">Returns image metadata. No BLOB data is sent in this response.</p>
+
+      <p class="sub-label">Query Parameters</p>
+      <table class="param-table">
+        <thead><tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>skip</td><td class="type">integer</td><td>0</td><td>Records to skip</td></tr>
+          <tr><td>limit</td><td class="type">integer</td><td>100</td><td>Max records to return</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Success Response — 200 OK (array)</p>
+      <pre>[
+  { <span class="key">"id"</span>: <span class="num">20</span>, <span class="key">"file_name"</span>: <span class="str">"farm.jpg"</span>, <span class="key">"format"</span>: <span class="str">"JPEG"</span>, <span class="key">"size"</span>: <span class="num">84320</span>, <span class="key">"created_at"</span>: <span class="str">"2026-03-18T10:22:31"</span> },
+  { <span class="key">"id"</span>: <span class="num">21</span>, <span class="key">"file_name"</span>: <span class="str">"crop.png"</span>,  <span class="key">"format"</span>: <span class="str">"PNG"</span>,  <span class="key">"size"</span>: <span class="num">212440</span>, <span class="key">"created_at"</span>: <span class="str">"2026-03-18T11:15:00"</span> }
+]</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /images/base/{image_id} -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/images/base/{image_id}</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Get base64 thumbnail for fast preview (256×256)</p>
+      <p class="description">
+        Returns a lightweight data URI for the 256×256 thumbnail. Use this in chat message lists,
+        image grids, or any place where speed matters. Much smaller than the full image BLOB.
+      </p>
+
+      <p class="sub-label">Path Parameters</p>
+      <table class="param-table">
+        <thead><tr><th>Param</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>image_id</td><td class="type">integer</td><td>The image's numeric ID</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sub-label">Success Response — 200 OK</p>
+      <pre>{
+  <span class="key">"image_id"</span>: <span class="num">20</span>,
+  <span class="key">"format"</span>: <span class="str">"jpeg"</span>,
+  <span class="key">"data_uri"</span>: <span class="str">"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ..."</span>
+}</pre>
+
+      <p class="sub-label">Example — Display in HTML</p>
+      <pre><span class="comment">// Use data_uri directly as an img src</span>
+const { data_uri } = await fetchImageBase(<span class="num">20</span>);
+imgElement.src = data_uri;</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">404 Thumbnail not found</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GET /images/{image_id} -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method GET">GET</span>
+      <span class="path">/images/{image_id}</span>
+      <span class="auth-badge requires">Requires JWT</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="summary">Stream a full-resolution image</p>
+      <p class="description">
+        Returns the full compressed image BLOB as a binary HTTP response with the correct
+        <code>Content-Type</code> (e.g., <code>image/jpeg</code>). Renders directly in the browser.
+        Use this for full-screen image viewing only.
+      </p>
+
+      <p class="sub-label">Example — Use as &lt;img&gt; src</p>
+      <pre>&lt;img src=<span class="str">"/images/20"</span>
+     alt=<span class="str">"Farm photo"</span>
+     <span class="comment">// Note: cookie must be present for auth</span>
+/&gt;</pre>
+
+      <p class="sub-label">Status Codes</p>
+      <div class="status-list">
+        <span class="status-chip s2xx">200 OK — Binary image response</span>
+        <span class="status-chip s4xx">401 Unauthorized</span>
+        <span class="status-chip s4xx">404 Image not found</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ ERROR REFERENCE ═══════════════════════ -->
+  <h2 class="section-title page-break" id="error-reference">6. Error Reference</h2>
+  <p class="section-desc">All errors are returned as JSON with a <code>detail</code> field. Standard HTTP status codes apply.</p>
+
+  <table class="param-table" style="margin-bottom: 32px;">
+    <thead><tr><th>HTTP Status</th><th>When It Occurs</th><th>What to Show the User</th></tr></thead>
+    <tbody>
+      <tr><td><strong>400</strong></td><td>Invalid/expired/used reset token; image compression failed</td><td>Show the error detail message directly</td></tr>
+      <tr><td><strong>401</strong></td><td>Wrong password; invalid/expired JWT</td><td>"Invalid credentials" or redirect to login</td></tr>
+      <tr><td><strong>403</strong></td><td>Account inactive; insufficient role</td><td>"Your account is inactive" or "Access denied"</td></tr>
+      <tr><td><strong>404</strong></td><td>User, site, image, or assignment not found</td><td>"Not found" message or empty state UI</td></tr>
+      <tr><td><strong>409</strong></td><td>Duplicate username or email on user creation</td><td>"Username or email already exists"</td></tr>
+      <tr><td><strong>422</strong></td><td>Pydantic validation error — missing/wrong field types</td><td>Highlight the specific invalid field</td></tr>
+      <tr><td><strong>500</strong></td><td>Server misconfiguration; key vault unreachable</td><td>"Server error — please try again later"</td></tr>
+    </tbody>
+  </table>
+
+  <p class="sub-label">Error Response Shape</p>
+  <pre>{
+  <span class="key">"detail"</span>: <span class="str">"A user with this username or email already exists."</span>
+}</pre>
+
+  <!-- ═══════════════════════ QUICK START ═══════════════════════ -->
+  <h2 class="section-title page-break" id="quick-start">7. Quick-Start Code Snippets</h2>
+  <p class="section-desc">Copy-paste examples for the most common frontend flows.</p>
+
+  <p class="sub-label">1 — Login &amp; Store Token</p>
+  <pre><span class="comment">// JavaScript (fetch) — works with cookie or manual Bearer</span>
+async function login(identifier, password) {
+  const res = await fetch(<span class="str">'/auth/login'</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: { <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span> },
+    credentials: <span class="str">'include'</span>,  <span class="comment">// important: sends/receives HTTP-only cookie</span>
+    body: JSON.stringify({ identifier, password }),
+  });
+  if (!res.ok) throw new Error((await res.json()).detail);
+  const data = await res.json();
+  <span class="comment">// data.access_token, data.role, data.username, data.email</span>
+  localStorage.setItem(<span class="str">'agrinow_token'</span>, data.access_token);
+  localStorage.setItem(<span class="str">'agrinow_role'</span>,  data.role);
+  return data;
+}</pre>
+
+  <p class="sub-label">2 — Authenticated Request Helper</p>
+  <pre><span class="comment">// Reusable helper — automatically attaches the Bearer token</span>
+async function apiFetch(path, options = {}) {
+  const token = localStorage.getItem(<span class="str">'agrinow_token'</span>);
+  const res = await fetch(path, {
+    ...options,
+    credentials: <span class="str">'include'</span>,
+    headers: {
+      <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span>,
+      ...(token ? { Authorization: <span class="str">`Bearer ${token}`</span> } : {}),
+      ...options.headers,
+    },
+  });
+  if (res.status === <span class="num">401</span>) {
+    <span class="comment">// Token expired — redirect to login</span>
+    window.location.href = <span class="str">'/login'</span>;
+    return;
+  }
+  if (!res.ok) throw new Error((await res.json()).detail);
+  return res.json();
+}</pre>
+
+  <p class="sub-label">3 — Upload an Image</p>
+  <pre><span class="comment">// multipart/form-data — do NOT set Content-Type manually</span>
+async function uploadImage(file) {
+  const token = localStorage.getItem(<span class="str">'agrinow_token'</span>);
+  const form = new FormData();
+  form.append(<span class="str">'file'</span>, file);
+  const res = await fetch(<span class="str">'/images/'</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: { Authorization: <span class="str">`Bearer ${token}`</span> },
+    credentials: <span class="str">'include'</span>,
+    body: form,
+  });
+  if (!res.ok) throw new Error((await res.json()).detail);
+  return res.json(); <span class="comment">// { id, file_name, format, size, created_at }</span>
+}</pre>
+
+  <p class="sub-label">4 — Post a Site Comment with Image</p>
+  <pre><span class="comment">// 1. Upload image first, get the image_id</span>
+const { id: imageId } = await uploadImage(myFile);
+
+<span class="comment">// 2. Post comment referencing the image</span>
+const comment = await apiFetch(<span class="str">'/sites/comments'</span>, {
+  method: <span class="str">'POST'</span>,
+  body: JSON.stringify({
+    site_user_relation_id: <span class="num">12</span>,
+    comment: <span class="str">"See attached photo."</span>,
+    image_id: imageId,
+    type: <span class="str">"image"</span>,
+  }),
+});</pre>
+
+  <p class="sub-label">5 — Forgot Password Flow</p>
+  <pre><span class="comment">// Step 1 — Send reset request (always show generic message)</span>
+await apiFetch(<span class="str">'/auth/forgot-password'</span>, {
+  method: <span class="str">'POST'</span>,
+  body: JSON.stringify({ email: userEmail }),
+});
+showMessage(<span class="str">"If that email is registered, a reset link was sent."</span>);
+
+<span class="comment">// Step 2 — On /reset-password page, extract token from URL</span>
+const token = new URLSearchParams(window.location.search).get(<span class="str">'token'</span>);
+
+<span class="comment">// Step 3 — Submit new password</span>
+await apiFetch(<span class="str">'/auth/reset-password'</span>, {
+  method: <span class="str">'POST'</span>,
+  body: JSON.stringify({ token, new_password: newPassword }),
+});</pre>
+
+</div><!-- /wrapper -->
+
+<!-- ── Print button ──────────────────────────────── -->
+<button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
+
+</body>
+</html>

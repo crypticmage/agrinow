@@ -1,12 +1,7 @@
 import os
-import base64
-import json
+import smtplib
 from email.message import EmailMessage
 from fastapi import HTTPException
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
 from dotenv import load_dotenv
 import asyncio
 from googletrans import Translator, LANGUAGES
@@ -14,58 +9,24 @@ from googletrans import Translator, LANGUAGES
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 class GmailSender:
-    def __init__(self, token_file=None, client_secret_file=None, port=8080):
-        self.scopes = ['https://www.googleapis.com/auth/gmail.send']
-        self.token_data = token_file or os.getenv('GMAIL_TOKEN_FILE')
-        self.client_secret_data = client_secret_file or os.getenv('GMAIL_CLIENT_SECRET_FILE')
-        self.port = port
-        self.service = self._get_gmail_service()
+    def __init__(self):
+        self.smtp_server = os.getenv('SMTP_SERVER', 'mail.namanskshetty.in')
+        self.smtp_port = int(os.getenv('SMTP_PORT', 465))
+        self.smtp_username = os.getenv('SMTP_USERNAME', 'support@namanskshetty.in')
+        self.smtp_password = os.getenv('SMTP_PASSWORD')
 
-    def _load_json(self, value):
-        """Load JSON from a file path or raw JSON string."""
-        if not value:
-            raise RuntimeError(f"Value is empty or not set.")
-
-        # ✅ If it's a file path — read the file directly
-        if os.path.isfile(value):
-            with open(value, 'r', encoding='utf-8') as f:
-                return json.load(f)
-
-        # ✅ Fallback — treat as raw JSON string
+    def _send_email_smtp(self, message):
+        if not self.smtp_password:
+            raise RuntimeError("SMTP_PASSWORD is not set in the environment variables.")
         try:
-            return json.loads(value)
-        except json.JSONDecodeError as e:
-            raise RuntimeError(
-                f"Not a valid file path and not valid JSON. "
-                f"Error: {e} | "
-                f"first_100_chars: {value[:100]}"
-            )
-
-    def _get_gmail_service(self):
-        creds = None
-
-        if self.token_data:
-            try:
-                token_json = self._load_json(self.token_data)
-                creds = Credentials.from_authorized_user_info(token_json, self.scopes)
-            except Exception as e:
-                raise RuntimeError(f"Failed to load GMAIL_TOKEN_FILE: {e}")
-
-        if not creds:
-            raise RuntimeError("Gmail credentials could not be loaded. Check GMAIL_TOKEN_FILE in .env")
-
-        if not creds.valid:
-            if creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                try:
-                    client_config = self._load_json(self.client_secret_data)
-                    flow = InstalledAppFlow.from_client_config(client_config, self.scopes)
-                    creds = flow.run_local_server(port=self.port, access_type='offline', prompt='consent')
-                except Exception as e:
-                    raise RuntimeError(f"Failed to load GMAIL_CLIENT_SECRET_FILE: {e}")
-
-        return build('gmail', 'v1', credentials=creds)
+            with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port) as server:
+                server.login(self.smtp_username, self.smtp_password)
+                server.send_message(message)
+            print("Successfully sent email via SMTP.")
+            return True
+        except Exception as e:
+            print(f"SMTP Error: {e}")
+            raise HTTPException(status_code=500, detail=f"Email failed: {str(e)}")
 
     async def _translate_text(self, text, language):
         lang_code = language.strip().lower()
@@ -87,6 +48,7 @@ class GmailSender:
             return text
 
     async def send_email(self, sender, to, name, role, hire_date, language="en"):
+        print("In mail")
         lang = language.strip().lower()
 
         subject         = await self._translate_text("Welcome to the Revolution: You're officially part of SeedSense!", lang)
@@ -172,20 +134,11 @@ class GmailSender:
         message = EmailMessage()
         message.set_content(content, subtype='html')
         message['To'] = to
-        message['From'] = sender
+        message['From'] = self.smtp_username # always use authenticating user as sender to avoid relay issues
         message['Subject'] = subject
 
-        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-        try:
-            sent_message = self.service.users().messages().send(
-                userId="me",
-                body={'raw': encoded_message}
-            ).execute()
-            print(f"Success! Email sent. Message ID: {sent_message.get('id')}")
-            return sent_message.get('id')
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Email failed: {str(e)}")
+        self._send_email_smtp(message)
+        return "sent"
 
     async def send_reset_email(self, sender, to, name, reset_link):
         subject = "Reset Your SeedSense Password"
@@ -240,26 +193,255 @@ class GmailSender:
         message = EmailMessage()
         message.set_content(content, subtype='html')
         message['To'] = to
-        message['From'] = sender
+        message['From'] = self.smtp_username
         message['Subject'] = subject
 
-        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
         try:
-            sent_message = self.service.users().messages().send(
-                userId="me",
-                body={'raw': encoded_message}
-            ).execute()
-            print(f"Password reset email sent. Message ID: {sent_message.get('id')}")
-            return sent_message.get('id')
+            self._send_email_smtp(message)
+            return "sent"
         except Exception as e:
             print(f"Error sending reset email: {e}")
+            return None
+
+    async def send_attendance_email(
+        self,
+        sender,
+        to,
+        name,
+        date_str,
+        time_str,
+        action_type,
+        language="en",
+        notes=None,
+        latitude=None,
+        longitude=None,
+        compliance=None,
+        distance_km=None,
+    ):
+        lang = language.strip().lower()
+        is_checkin = action_type.lower() in ("check-in", "checkin", "check in")
+
+        # Header color: green for check-in, indigo for check-out
+        header_bg  = "#1b5e20" if is_checkin else "#1a237e"
+        accent_clr = "#2e7d32" if is_checkin else "#283593"
+        action_icon = "🟢" if is_checkin else "🔵"
+
+        # Compliance badge
+        compliance_html = ""
+        if compliance:
+            badge_map = {
+                "compliant":     ("#e8f5e9", "#2e7d32", "✅ Compliant"),
+                "non_compliant": ("#fff3e0", "#e65100", "⚠️ Far from Site"),
+                "no_location":   ("#f3e5f5", "#6a1b9a", "📍 No GPS Data"),
+                "no_site":       ("#eceff1", "#546e7a", "🏗️ No Site Assigned"),
+            }
+            bg, fg, label = badge_map.get(compliance, ("#f5f5f5", "#555", compliance))
+            dist_text = f" &nbsp;·&nbsp; {distance_km} km from nearest site" if distance_km is not None else ""
+            compliance_html = f"""
+                        <tr>
+                            <td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                                <span style="font-size: 13px; color: #888;">Site Compliance</span>
+                            </td>
+                            <td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                                <span style="background:{bg}; color:{fg}; padding:3px 10px; border-radius:12px; font-size:13px; font-weight:600;">{label}</span>
+                                <span style="font-size:12px; color:#999;">{dist_text}</span>
+                            </td>
+                        </tr>"""
+
+        # GPS row
+        gps_html = ""
+        if latitude is not None and longitude is not None:
+            maps_url = f"https://www.google.com/maps?q={latitude},{longitude}"
+            gps_html = f"""
+                        <tr>
+                            <td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                                <span style="font-size: 13px; color: #888;">Location</span>
+                            </td>
+                            <td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                                <a href="{maps_url}" style="color:{accent_clr}; font-size:13px; text-decoration:none;">
+                                    📌 {latitude:.5f}, {longitude:.5f}
+                                </a>
+                            </td>
+                        </tr>"""
+
+        # Notes row
+        notes_html = ""
+        if notes:
+            notes_html = f"""
+                        <tr>
+                            <td style="padding: 8px 0;">
+                                <span style="font-size: 13px; color: #888;">Notes</span>
+                            </td>
+                            <td style="padding: 8px 0;">
+                                <span style="font-size:13px; color:#444; font-style:italic;">"{notes}"</span>
+                            </td>
+                        </tr>"""
+
+        subject = await self._translate_text(f"SeedSense: {action_type} Recorded — {date_str}", lang)
+
+        content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background-color:#f0f2f5;color:#333;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600"
+        style="border-collapse:collapse;background:#fff;margin:24px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+
+        <!-- Header -->
+        <tr>
+            <td align="center" style="padding:36px 30px 28px;background:{header_bg};">
+                <p style="margin:0 0 4px 0;color:rgba(255,255,255,0.7);font-size:12px;letter-spacing:2px;text-transform:uppercase;">SeedSense Field Operations</p>
+                <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;letter-spacing:0.5px;">
+                    {action_icon} {action_type} Confirmed
+                </h1>
+                <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">{date_str}</p>
+            </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+            <td style="padding:32px 36px 24px;">
+                <p style="margin:0 0 24px;font-size:16px;color:#444;line-height:1.6;">
+                    Hi <strong style="color:#222;">{name}</strong>,<br>
+                    Your <strong>{action_type}</strong> has been recorded at <strong>{time_str}</strong>.
+                </p>
+
+                <!-- Details card -->
+                <div style="background:#fafafa;border:1px solid #eee;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+                    <p style="margin:0 0 14px;font-size:11px;font-weight:700;color:#999;letter-spacing:1.5px;text-transform:uppercase;">Attendance Details</p>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                        <tr>
+                            <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;width:38%;">
+                                <span style="font-size:13px;color:#888;">Date</span>
+                            </td>
+                            <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                <span style="font-size:13px;font-weight:600;color:#222;">{date_str}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                <span style="font-size:13px;color:#888;">Time</span>
+                            </td>
+                            <td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+                                <span style="font-size:13px;font-weight:600;color:#222;">{time_str}</span>
+                            </td>
+                        </tr>
+                        {compliance_html}
+                        {gps_html}
+                        {notes_html}
+                    </table>
+                </div>
+
+                <p style="margin:0;font-size:13px;color:#aaa;text-align:center;">
+                    This is an automated confirmation. No action is required.
+                </p>
+            </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+            <td style="padding:18px 36px;background:#f7f7f7;border-top:1px solid #eee;text-align:center;">
+                <p style="margin:0 0 4px;font-size:12px;color:#aaa;">&copy; 2026 SeedSense &nbsp;|&nbsp; Bengaluru, India</p>
+                <p style="margin:0;font-size:11px;color:#ccc;">Attendance confirmation — {action_type} &nbsp;·&nbsp; {date_str}</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>"""
+
+        message = EmailMessage()
+        message.set_content(content, subtype='html')
+        message['To'] = to
+        message['From'] = self.smtp_username
+        message['Subject'] = subject
+
+        try:
+            self._send_email_smtp(message)
+            return "sent"
+        except Exception as e:
+            print(f"Error sending attendance email: {e}")
+            return None
+
+    async def send_site_assignment_email(self, sender, to, name, site_name, assigned_date, language="en"):
+        lang = language.strip().lower()
+
+        subject         = await self._translate_text("SeedSense: New Site Assignment Alert", lang)
+        greeting        = await self._translate_text(f"You have been assigned to a new site: {site_name}.", lang)
+        account_details = await self._translate_text("Assignment Details:", lang)
+        label_name      = await self._translate_text("Name:", lang)
+        label_site      = await self._translate_text("Site:", lang)
+        label_date      = await self._translate_text("Assigned Date:", lang)
+        footer1         = await self._translate_text("You received this email because you were assigned to a new site.", lang)
+        welcome_heading = await self._translate_text("Site Assignment Notification", lang)
+
+        content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333333;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; margin-top: 20px; margin-bottom: 20px; border-radius: 8px; overflow: hidden; box-shadow: 0px 4px 10px rgba(0,0,0,0.05);">
+        <tr>
+            <td align="center" style="padding: 30px 0; background-color: #2e7d32;">
+                <h1 style="margin: 0; color: #ffffff; font-size: 26px; letter-spacing: 1px;">SeedSense</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 30px;">
+                <h2 style="margin: 0 0 15px 0; color: #2e7d32; font-size: 22px;">{welcome_heading}</h2>
+                <p style="margin: 0 0 20px 0; line-height: 1.6; font-size: 16px;">
+                    Hi <strong>{name}</strong>, <br><br>
+                    {greeting}
+                </p>
+                <div style="background-color: #e8f5e9; border-left: 4px solid #2e7d32; padding: 15px; margin-bottom: 25px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #2e7d32;">{account_details}</h3>
+                    <table width="100%" style="font-size: 14px; line-height: 1.8;">
+                        <tr>
+                            <td width="30%"><strong>{label_name}</strong></td>
+                            <td>{name}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>{label_site}</strong></td>
+                            <td><strong>{site_name}</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>{label_date}</strong></td>
+                            <td>{assigned_date}</td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 20px; background-color: #eeeeee; text-align: center; font-size: 12px; color: #777777;">
+                <p style="margin: 0 0 5px 0;">&copy; 2026 SeedSense | Bengaluru, India</p>
+                <p style="margin: 0;">{footer1}</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>"""
+
+        message = EmailMessage()
+        message.set_content(content, subtype='html')
+        message['To'] = to
+        message['From'] = self.smtp_username
+        message['Subject'] = subject
+
+        try:
+            self._send_email_smtp(message)
+            return "sent"
+        except Exception as e:
+            print(f"Error sending site assignment email: {e}")
             return None
 
 if __name__ == '__main__':
     gmail_client = GmailSender()
     asyncio.run(gmail_client.send_email(
-        sender="crypticmage00@gmail.com",
+        sender="support@namanskshetty.in",
         to="test@example.com",
         name="Test User",
         role="Admin",
