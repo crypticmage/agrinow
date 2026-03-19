@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from database.database import engine
 import models
-from routers import create_user, auth, users, sites, images, attendance
+from routers import create_user, auth, users, sites, images, attendance, sync
 
 
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=True)
@@ -116,6 +116,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "https://cmdev.rakshitr.co.in",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -252,3 +253,4 @@ app.include_router(users.router)
 app.include_router(sites.router)
 app.include_router(images.router)
 app.include_router(attendance.router)
+app.include_router(sync.router)

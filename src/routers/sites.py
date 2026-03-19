@@ -4,11 +4,13 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session, load_only
 from starlette import status
 from datetime import date, datetime, timezone, timedelta
+import asyncio
 
 from database.database import SessionLocal
 from models import Sites, SiteAssignments, SiteComments, Users
 from dependencies import get_current_user
 from tools.gmail import GmailSender
+from googletrans import Translator, LANGUAGES
 
 async def send_site_assignment_notification(email: str, name: str, site_name: str, assigned_date: str, language: str):
     try:
@@ -113,10 +115,13 @@ def get_my_assignments(db: db_dependency, current_user: dict = Depends(get_curre
 def get_all_assignments(db: db_dependency, current_user: dict = Depends(get_current_user)):
     """Fetch all site assignment rows in the system (for managers/admins)."""
     assignments = db.query(SiteAssignments).all()
+    user_ids = {a.user_id for a in assignments}
+    users = {u.id: u.username for u in db.query(Users.id, Users.username).filter(Users.id.in_(user_ids)).all()}
     return [
         {
             "id": a.id,
             "user_id": a.user_id,
+            "username": users.get(a.user_id),
             "site_id": a.site_id,
             "assigned_date": str(a.assigned_date) if a.assigned_date else None,
         }
@@ -125,9 +130,19 @@ def get_all_assignments(db: db_dependency, current_user: dict = Depends(get_curr
 
 @router.post("/", response_model=SiteResponse, status_code=status.HTTP_201_CREATED)
 def create_site(site_request: SiteCreate, db: db_dependency, current_user: dict = Depends(get_current_user)):
-    """Create a new site."""
+    """Create a new site and auto-assign all active admin users to it."""
     new_site = Sites(**site_request.model_dump())
     db.add(new_site)
+    db.flush()  # populate new_site.id before creating assignments
+
+    admins = db.query(Users).filter(Users.role == "admin", Users.is_active == True).all()
+    for admin in admins:
+        db.add(SiteAssignments(
+            user_id=admin.id,
+            site_id=new_site.id,
+            assigned_date=date.today(),
+        ))
+
     db.commit()
     db.refresh(new_site)
     return new_site
@@ -220,9 +235,23 @@ def remove_site_assignment(assignment_id: int, db: db_dependency, current_user: 
 
 _IST = timezone(timedelta(hours=5, minutes=30))
 
+async def _translate(text: str, lang_code: str) -> str:
+    """Translate text to lang_code; falls back to original on error."""
+    if not text or not lang_code or lang_code in ("en", "english"):
+        return text
+    LANGUAGE_NAMES = {v: k for k, v in LANGUAGES.items()}
+    dest = LANGUAGE_NAMES.get(lang_code.strip().lower(), lang_code.strip().lower())
+    try:
+        translator = Translator()
+        result = await asyncio.wait_for(translator.translate(text, dest=dest), timeout=5.0)
+        return result.text
+    except Exception:
+        return text
+
+
 @router.get("/{site_id}/comments", response_model=List[SiteCommentResponse], status_code=status.HTTP_200_OK)
-def get_site_comments(site_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
-    """Retrieve all comments/chat for a specific site, with user name/role and IST timestamps."""
+async def get_site_comments(site_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
+    """Retrieve all comments/chat for a specific site, translated to the requesting user's language."""
     comments = (
         db.query(SiteComments)
         .join(SiteAssignments, SiteAssignments.id == SiteComments.site_user_relation_id)
@@ -235,6 +264,10 @@ def get_site_comments(site_id: int, db: db_dependency, current_user: dict = Depe
     user_ids = list({c.user_id for c in comments})
     users_map = {u.id: u for u in db.query(Users).filter(Users.id.in_(user_ids)).all()} if user_ids else {}
 
+    # Resolve requesting user's preferred language
+    requester = db.query(Users.language).filter(Users.id == int(current_user["sub"])).first()
+    lang = (requester.language or "en") if requester else "en"
+
     result = []
     for c in comments:
         u = users_map.get(c.user_id)
@@ -242,6 +275,7 @@ def get_site_comments(site_id: int, db: db_dependency, current_user: dict = Depe
         ts = c.timestamp
         if ts is not None and ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc).astimezone(_IST)
+        translated_comment = await _translate(c.comment or "", lang)
         result.append({
             "id": c.id,
             "site_user_relation_id": c.site_user_relation_id,
@@ -250,7 +284,7 @@ def get_site_comments(site_id: int, db: db_dependency, current_user: dict = Depe
             "first_name": u.first_name if u else None,
             "last_name": u.last_name if u else None,
             "role": u.role if u else None,
-            "comment": c.comment,
+            "comment": translated_comment,
             "image_id": c.image_id,
             "type": c.type,
             "timestamp": ts,

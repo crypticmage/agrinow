@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateT
 from sqlalchemy.sql import func
 from sqlalchemy.orm import deferred
 from sqlalchemy.dialects.mysql import LONGTEXT as MySQL_LONGTEXT
+from sqlalchemy.dialects.mysql import DATETIME as MySQLDATETIME
 LongText = Text().with_variant(MySQL_LONGTEXT(), "mysql")
 
 class Users(Base):
@@ -34,6 +35,9 @@ class Sites(Base):
     close_date = Column(Date, nullable=True)
     latitude   = Column(Float, nullable=True)
     longitude  = Column(Float, nullable=True)
+    local_id   = Column(String(36),    nullable=True, index=True, unique=True)
+    updated_at = Column(MySQLDATETIME(fsp=3), nullable=False, server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(MySQLDATETIME(fsp=3), nullable=True)
 
 
 class SiteAssignments(Base):
@@ -43,6 +47,9 @@ class SiteAssignments(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     site_id = Column(Integer, ForeignKey("sites.id"))
     assigned_date = Column(Date)
+    local_id   = Column(String(36),    nullable=True, index=True, unique=True)
+    updated_at = Column(MySQLDATETIME(fsp=3), nullable=False, server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(MySQLDATETIME(fsp=3), nullable=True)
 
 
 class SiteComments(Base):
@@ -55,6 +62,9 @@ class SiteComments(Base):
     image_id = Column(Integer, ForeignKey("images.id"))
     type = Column(String(255))
     timestamp = Column(DateTime, server_default=func.now())
+    local_id   = Column(String(36),    nullable=True, index=True, unique=True)
+    updated_at = Column(MySQLDATETIME(fsp=3), nullable=False, server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(MySQLDATETIME(fsp=3), nullable=True)
 
 class UserLogs(Base):
     """Stores user activity audit log"""
@@ -108,3 +118,7 @@ class AttendanceLog(Base):
     latitude   = Column(Float, nullable=True)
     longitude  = Column(Float, nullable=True)
     notes      = Column(String(512), nullable=True)
+    site_compliance = Column(String(32),    nullable=True)
+    local_id        = Column(String(36),    nullable=True, index=True, unique=True)
+    updated_at      = Column(MySQLDATETIME(fsp=3), nullable=False, server_default=func.now(), onupdate=func.now())
+    deleted_at      = Column(MySQLDATETIME(fsp=3), nullable=True)

@@ -20,7 +20,10 @@ from utils.timezone import get_ist_now, get_ist_date
 
 def _compliance_radius_km() -> float:
     """Read the site compliance radius from env (default 10 km)."""
-    return float(os.getenv("SITE_COMPLIANCE_RADIUS_KM", "10"))
+    try:
+        return float(os.getenv("SITE_COMPLIANCE_RADIUS_KM", "10"))
+    except (ValueError, TypeError):
+        return 10.0
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

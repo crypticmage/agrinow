@@ -11,3 +11,5 @@ superpowers
 alembic
 .venv
 .env.example
+tests/
+tests
