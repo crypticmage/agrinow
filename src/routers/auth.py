@@ -9,6 +9,9 @@ from models import Users, PasswordResetTokens, UserLogs
 from database.database_space import SUPABASE_URL, SUPABASE_SERVICE_KEY, update_user_keys_in_supabase
 from dependencies import get_current_user
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 import base64
 import uuid
 import jwt
@@ -274,22 +277,26 @@ async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_depe
     user = db.query(Users).options(load_only(
         Users.id, Users.email, Users.is_active, Users.first_name, Users.last_name
     )).filter(Users.email == body.email).first()
+
     if not user or not user.is_active:
-        return generic_response
+        print("No Usch user")
+        return {"message": "Sorry this email is not registered with us."}
     twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
 
     recent_password_reset = (
-        db.query(PasswordResetTokens).options(load_only(PasswordResetTokens.id))
+        db.query(PasswordResetTokens.id)
         .filter(
             PasswordResetTokens.user_id == user.id,
-            PasswordResetTokens.used == True,
+            PasswordResetTokens.used.is_(True),
             PasswordResetTokens.created_at >= twenty_four_hours_ago
         )
-        .first()
+        .first() is not None
     )
-    if recent_password_reset:
-        return {"message": "You have already changes the password today. Please Try again after 24 hours"}
     
+    if recent_password_reset:
+        return {
+            "message": "You have already changed your password in the last 24 hours. Please try again later."
+        }
     # Generate a unique reset token
     reset_token = str(uuid.uuid4())
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -304,24 +311,23 @@ async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_depe
     db.commit()
     _log(db, "forgot_password_requested", user_id=user.id, request=req)
 
-    # Build the reset link using the request's base URL
-    # Example logic
-    forwarded_host = req.headers.get("x-forwarded-host")
-    base_url = f"https://{forwarded_host}" if forwarded_host else str(req.base_url).rstrip("/")
-    reset_link = f"{base_url}/reset-password?token={reset_token}"
+    # Build the reset link pointing to the frontend
+    frontend_url = os.getenv("FRONTEND_URL", "https://cmdev.rakshitr.co.in").rstrip("/")
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
 
     # Send the reset email
-    # print(reset_link)
     try:
         gmail_client = GmailSender()
+        logger.info(f"[RESET] Sending to {user.email} | SMTP: {gmail_client.smtp_server}:{gmail_client.smtp_port} | password_set={bool(gmail_client.smtp_password)} | link={reset_link}")
         await gmail_client.send_reset_email(
             sender="crypticmage00@gmail.com",
             to=user.email,
             name=f"{user.first_name} {user.last_name}",
             reset_link=reset_link,
         )
+        logger.info(f"[RESET] Email sent OK to {user.email}")
     except Exception as e:
-        print(f"Warning: Failed to send reset email: {e}")
+        logger.error(f"[RESET] FAILED for {user.email}: {type(e).__name__}: {e}", exc_info=True)
 
     return generic_response
 

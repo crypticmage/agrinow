@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import asyncio
 from googletrans import Translator, LANGUAGES
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 class GmailSender:
     def __init__(self):
@@ -196,12 +196,8 @@ class GmailSender:
         message['From'] = self.smtp_username
         message['Subject'] = subject
 
-        try:
-            self._send_email_smtp(message)
-            return "sent"
-        except Exception as e:
-            print(f"Error sending reset email: {e}")
-            return None
+        self._send_email_smtp(message)
+        return "sent"
 
     async def send_attendance_email(
         self,

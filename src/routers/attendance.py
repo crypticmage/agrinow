@@ -7,6 +7,9 @@ from datetime import date, datetime
 import calendar
 import math
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 from database.database import SessionLocal
 from models import AttendanceLog, Users, SiteAssignments, Sites
@@ -67,6 +70,7 @@ async def send_attendance_notification(
 ):
     try:
         sender = GmailSender()
+        logger.info(f"Sending attendance email to {email} | SMTP: {sender.smtp_server}:{sender.smtp_port} | password_set={bool(sender.smtp_password)}")
         await sender.send_attendance_email(
             sender=sender.smtp_username,
             to=email,
@@ -81,8 +85,9 @@ async def send_attendance_notification(
             compliance=compliance,
             distance_km=distance_km,
         )
+        logger.info(f"Attendance email sent successfully to {email}")
     except Exception as e:
-        print(f"Background email failed: {e}")
+        logger.error(f"Background attendance email FAILED for {email}: {type(e).__name__}: {e}", exc_info=True)
 
 router = APIRouter(prefix='/attendance', tags=['Attendance'])
 
