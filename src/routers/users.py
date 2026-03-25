@@ -111,11 +111,6 @@ def get_all_users(
         Users.is_active, Users.hire_date, Users.relive_date, Users.emp_type,
         Users.created_dt
     )).offset(skip).limit(limit).all()
-    if not users:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No users found."
-        )
     return users
 
 
@@ -236,6 +231,9 @@ def update_user(
     db: db_dependency,
     current_user: dict = Depends(get_current_user)
 ):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
+
     user = db.query(Users).filter(Users.id == user_id).first()
     if not user:
         raise HTTPException(
@@ -277,6 +275,12 @@ async def delete_user(
     db: db_dependency,
     current_user: dict = Depends(get_current_user)
 ):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
+
+    if user_id == int(current_user.get("sub")):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admins cannot delete their own account.")
+
     user = db.query(Users).filter(Users.id == user_id).first()
     if not user:
         raise HTTPException(

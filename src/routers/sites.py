@@ -11,6 +11,7 @@ from models import Sites, SiteAssignments, SiteComments, Users
 from dependencies import get_current_user
 from tools.gmail import GmailSender
 from googletrans import Translator, LANGUAGES
+from utils.timezone import get_ist_date
 
 async def send_site_assignment_notification(email: str, name: str, site_name: str, assigned_date: str, language: str):
     try:
@@ -30,6 +31,29 @@ router = APIRouter(
     prefix='/sites',
     tags=['Sites & Chat']
 )
+
+
+def _accessible_site_ids(user_id: int, role: str, db: Session) -> list[int] | None:
+    """Return the set of site_ids the current user may access, or None for unrestricted (admin)."""
+    if role == "admin":
+        return None  # no restriction
+
+    # Own assignments
+    own = db.query(SiteAssignments.site_id).filter(SiteAssignments.user_id == user_id).all()
+    site_ids = {row.site_id for row in own}
+
+    # If manager: also include sites assigned to direct subordinates
+    if role == "manager":
+        subordinate_ids = [
+            row.id for row in db.query(Users.id).filter(Users.manager_id == user_id).all()
+        ]
+        if subordinate_ids:
+            sub_sites = db.query(SiteAssignments.site_id).filter(
+                SiteAssignments.user_id.in_(subordinate_ids)
+            ).all()
+            site_ids.update(row.site_id for row in sub_sites)
+
+    return list(site_ids)
 
 def get_db():
     db = SessionLocal()
@@ -100,15 +124,21 @@ def get_my_sites(db: db_dependency, current_user: dict = Depends(get_current_use
 def get_my_assignments(db: db_dependency, current_user: dict = Depends(get_current_user)):
     """Fetch all site assignment rows for the current user."""
     user_id = int(current_user.get("sub"))
-    assignments = db.query(SiteAssignments).filter(SiteAssignments.user_id == user_id).all()
+    rows = (
+        db.query(SiteAssignments, Sites.site_name)
+        .join(Sites, Sites.id == SiteAssignments.site_id)
+        .filter(SiteAssignments.user_id == user_id)
+        .all()
+    )
     return [
         {
             "id": a.id,
             "user_id": a.user_id,
             "site_id": a.site_id,
+            "site_name": site_name,
             "assigned_date": str(a.assigned_date) if a.assigned_date else None,
         }
-        for a in assignments
+        for a, site_name in rows
     ]
     
 @router.get("/all-assignments", status_code=status.HTTP_200_OK)
@@ -140,7 +170,7 @@ def create_site(site_request: SiteCreate, db: db_dependency, current_user: dict 
         db.add(SiteAssignments(
             user_id=admin.id,
             site_id=new_site.id,
-            assigned_date=date.today(),
+            assigned_date=get_ist_date(),
         ))
 
     db.commit()
@@ -149,8 +179,15 @@ def create_site(site_request: SiteCreate, db: db_dependency, current_user: dict 
 
 @router.get("/", response_model=List[SiteResponse], status_code=status.HTTP_200_OK)
 def get_all_sites(db: db_dependency, current_user: dict = Depends(get_current_user)):
-    """Fetch all sites."""
-    return db.query(Sites).all()
+    """Fetch sites accessible to the current user (all for admin, own+subordinates for manager, own for others)."""
+    user_id = int(current_user["sub"])
+    role = current_user.get("role", "")
+    allowed = _accessible_site_ids(user_id, role, db)
+    if allowed is None:
+        return db.query(Sites).all()
+    if not allowed:
+        return []
+    return db.query(Sites).filter(Sites.id.in_(allowed)).all()
 
 @router.post("/assign", response_model=SiteAssignmentResponse, status_code=status.HTTP_201_CREATED)
 def assign_user_to_site(
@@ -190,14 +227,23 @@ def assign_user_to_site(
 @router.post("/comments", response_model=SiteCommentResponse, status_code=status.HTTP_201_CREATED)
 def add_site_comment(comment_req: SiteCommentCreate, db: db_dependency, current_user: dict = Depends(get_current_user)):
     """Add a chat comment associated with a user's site assignment."""
+    requester_id = int(current_user["sub"])
+    role = current_user.get("role", "")
+
     # Verify assignment exists
     assignment = db.query(SiteAssignments).filter(SiteAssignments.id == comment_req.site_user_relation_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Site assignment relation not found")
 
+    # Verify the requester has access to this site (admins can comment on all sites)
+    if role != "admin":
+        allowed = _accessible_site_ids(requester_id, role, db)
+        if allowed is not None and assignment.site_id not in allowed:
+            raise HTTPException(status_code=403, detail="You do not have access to this site.")
+
     new_comment = SiteComments(
         site_user_relation_id=assignment.id,
-        user_id=assignment.user_id,
+        user_id=requester_id,
         comment=comment_req.comment,
         image_id=comment_req.image_id,
         type=comment_req.type,
@@ -212,17 +258,18 @@ def add_site_comment(comment_req: SiteCommentCreate, db: db_dependency, current_
 def get_user_assignments(user_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
     """Get all site assignments for a specific user."""
     assignments = db.query(SiteAssignments).filter(SiteAssignments.user_id == user_id).all()
-    result = []
-    for a in assignments:
-        site = db.query(Sites).filter(Sites.id == a.site_id).first()
-        result.append({
+    site_ids = [a.site_id for a in assignments]
+    sites_map = {s.id: s.site_name for s in db.query(Sites.id, Sites.site_name).filter(Sites.id.in_(site_ids)).all()} if site_ids else {}
+    return [
+        {
             "id": a.id,
             "user_id": a.user_id,
             "site_id": a.site_id,
-            "site_name": site.site_name if site else None,
+            "site_name": sites_map.get(a.site_id),
             "assigned_date": str(a.assigned_date) if a.assigned_date else None,
-        })
-    return result
+        }
+        for a in assignments
+    ]
 
 @router.delete("/assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_site_assignment(assignment_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
@@ -252,6 +299,12 @@ async def _translate(text: str, lang_code: str) -> str:
 @router.get("/{site_id}/comments", response_model=List[SiteCommentResponse], status_code=status.HTTP_200_OK)
 async def get_site_comments(site_id: int, db: db_dependency, current_user: dict = Depends(get_current_user)):
     """Retrieve all comments/chat for a specific site, translated to the requesting user's language."""
+    user_id = int(current_user["sub"])
+    role = current_user.get("role", "")
+    allowed = _accessible_site_ids(user_id, role, db)
+    if allowed is not None and site_id not in allowed:
+        raise HTTPException(status_code=403, detail="You do not have access to this site.")
+
     comments = (
         db.query(SiteComments)
         .join(SiteAssignments, SiteAssignments.id == SiteComments.site_user_relation_id)
@@ -265,7 +318,7 @@ async def get_site_comments(site_id: int, db: db_dependency, current_user: dict 
     users_map = {u.id: u for u in db.query(Users).filter(Users.id.in_(user_ids)).all()} if user_ids else {}
 
     # Resolve requesting user's preferred language
-    requester = db.query(Users.language).filter(Users.id == int(current_user["sub"])).first()
+    requester = db.query(Users.language).filter(Users.id == user_id).first()
     lang = (requester.language or "en") if requester else "en"
 
     result = []

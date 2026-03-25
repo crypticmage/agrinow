@@ -118,6 +118,14 @@ class CheckOutRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class AdminCorrectRequest(BaseModel):
+    user_id: int
+    date: date
+    check_out: Optional[datetime] = None
+    check_in: Optional[datetime] = None
+    notes: Optional[str] = None
+
+
 class AttendanceResponse(BaseModel):
     id: int
     user_id: int
@@ -146,6 +154,24 @@ def check_in(
     """Record check-in for today. Only one check-in allowed per day."""
     user_id = int(current_user["sub"])
     today = get_ist_date()
+
+    # Auto-close any open record from a previous day (user forgot to clock out)
+    open_past = db.query(AttendanceLog).filter(
+        AttendanceLog.user_id == user_id,
+        AttendanceLog.date < today,
+        AttendanceLog.check_in.isnot(None),
+        AttendanceLog.check_out.is_(None),
+    ).order_by(AttendanceLog.date.desc()).first()
+    if open_past:
+        # Set check_out to end of that day (23:59:59) in IST
+        eod = datetime.combine(open_past.date, datetime.max.time()).replace(microsecond=0)
+        open_past.check_out = eod
+        if not open_past.notes:
+            open_past.notes = "Auto checked-out (missed clock-out)"
+        else:
+            open_past.notes = open_past.notes + " [Auto checked-out]"
+        db.commit()
+        logger.info(f"Auto checked-out user {user_id} for {open_past.date} at {eod}")
 
     existing = db.query(AttendanceLog).filter(
         AttendanceLog.user_id == user_id,
@@ -294,7 +320,7 @@ def get_my_history(
         .limit(limit)
         .all()
     )
-    return [_with_username(r, db) for r in records]
+    return _build_responses(records, db)
 
 
 @router.get("/all", response_model=List[AttendanceResponse], status_code=status.HTTP_200_OK)
@@ -305,16 +331,19 @@ def get_all(
 ):
     """Admin/Manager: get all attendance for a given date (defaults to today)."""
     role = current_user.get("role", "")
+    user_id = int(current_user["sub"])
     if role not in ("admin", "manager"):
         raise HTTPException(status_code=403, detail="Admins and managers only.")
     filter_date = target_date or get_ist_date()
-    records = (
-        db.query(AttendanceLog)
-        .filter(AttendanceLog.date == filter_date)
-        .order_by(AttendanceLog.check_in.asc())
-        .all()
-    )
-    return [_with_username(r, db) for r in records]
+    query = db.query(AttendanceLog).filter(AttendanceLog.date == filter_date)
+
+    if role == "manager":
+        sub_ids = [r.id for r in db.query(Users.id).filter(Users.manager_id == user_id).all()]
+        sub_ids.append(user_id)
+        query = query.filter(AttendanceLog.user_id.in_(sub_ids))
+
+    records = query.order_by(AttendanceLog.check_in.asc()).all()
+    return _build_responses(records, db)
 
 
 @router.get("/team-month", response_model=List[AttendanceResponse], status_code=status.HTTP_200_OK)
@@ -346,7 +375,37 @@ def get_team_month(
         query = query.filter(AttendanceLog.user_id.in_(sub_ids))
 
     records = query.order_by(AttendanceLog.date.asc(), AttendanceLog.check_in.asc()).all()
-    return [_with_username(r, db) for r in records]
+    return _build_responses(records, db)
+
+
+@router.patch("/admin-correct", response_model=AttendanceResponse, status_code=status.HTTP_200_OK)
+def admin_correct(
+    req: AdminCorrectRequest,
+    db: db_dependency,
+    current_user: dict = Depends(get_current_user),
+):
+    """Admin: retroactively set check_in / check_out for any user on any date."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admins only.")
+
+    record = db.query(AttendanceLog).filter(
+        AttendanceLog.user_id == req.user_id,
+        AttendanceLog.date == req.date,
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="No attendance record found for that user/date.")
+
+    if req.check_in is not None:
+        record.check_in = req.check_in
+    if req.check_out is not None:
+        record.check_out = req.check_out
+    if req.notes is not None:
+        record.notes = req.notes
+
+    db.commit()
+    db.refresh(record)
+    return _with_username(record, db)
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────
@@ -399,3 +458,34 @@ def _with_username(record: AttendanceLog, db: Session) -> dict:
         "site_compliance": site_compliance,
         "site_distance_km": site_distance_km,
     }
+
+
+def _build_responses(records: list, db: Session) -> list:
+    """Batch version of _with_username for list endpoints. Avoids N+1 queries.
+
+    Uses the stored `site_compliance` value (written at check-in/check-out time)
+    and fetches all usernames in a single query.
+    """
+    if not records:
+        return []
+    user_ids = list({r.user_id for r in records})
+    users_map = {
+        u.id: u.username
+        for u in db.query(Users.id, Users.username).filter(Users.id.in_(user_ids)).all()
+    }
+    return [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "username": users_map.get(r.user_id),
+            "date": r.date,
+            "check_in": r.check_in,
+            "check_out": r.check_out,
+            "latitude": r.latitude,
+            "longitude": r.longitude,
+            "notes": r.notes,
+            "site_compliance": r.site_compliance if r.site_compliance else ("no_location" if r.latitude is None else None),
+            "site_distance_km": None,
+        }
+        for r in records
+    ]

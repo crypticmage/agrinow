@@ -81,6 +81,7 @@ class TokenResponse(BaseModel):
     username: str     = Field(description="The authenticated user's username.")
     role: str         = Field(description="The authenticated user's role (e.g. admin, farmer, agent).")
     email: str        = Field(description="The authenticated user's email address.")
+    refresh_token: str = Field(description="HS256-signed JWT for refreshing access. Valid for 7 days.")
 
 
 # ── POST /auth/login ─────────────────────────────────────────────────────────
@@ -212,6 +213,15 @@ async def login(login_req: LoginRequest, db: db_dependency, response: Response, 
         }
         token = jwt.encode(payload, jwt_secret, algorithm=ALGORITHM)
 
+        # 8. Issue Refresh Token
+        refresh_expire = datetime.now(timezone.utc) + timedelta(days=7)
+        refresh_payload = {
+            "sub":      str(user.id),
+            "type":     "refresh",
+            "exp":      refresh_expire,
+        }
+        refresh_token = jwt.encode(refresh_payload, jwt_secret, algorithm=ALGORITHM)
+
         _log(db, "login", user_id=user.id, request=request)
 
         response.set_cookie(
@@ -222,6 +232,14 @@ async def login(login_req: LoginRequest, db: db_dependency, response: Response, 
             samesite="lax",
             max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=7 * 24 * 60 * 60,
+        )
 
         return TokenResponse(
             access_token=token,
@@ -229,6 +247,7 @@ async def login(login_req: LoginRequest, db: db_dependency, response: Response, 
             username=user.username,
             email=user.email,
             role=user.role,
+            refresh_token=refresh_token
         )
 
     finally:
@@ -279,8 +298,7 @@ async def forgot_password(req: Request, body: ForgotPasswordRequest, db: db_depe
     )).filter(Users.email == body.email).first()
 
     if not user or not user.is_active:
-        print("No Usch user")
-        return {"message": "Sorry this email is not registered with us."}
+        return generic_response
     twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
 
     recent_password_reset = (
@@ -664,3 +682,47 @@ async def change_password(
         if private_bytes:
             del private_bytes
 
+
+# ── POST /auth/refresh ───────────────────────────────────────────────────────
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class RefreshResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+@router.post(
+    "/refresh",
+    response_model=RefreshResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Refresh access token",
+)
+async def refresh_token(req: RefreshRequest, db: db_dependency):
+    jwt_secret = os.getenv("JWT_SECRET_KEY")
+    try:
+        payload = jwt.decode(req.refresh_token, jwt_secret, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        
+        user_id = int(payload.get("sub"))
+        user = db.query(Users).filter(Users.id == user_id).first()
+        
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="User not found or inactive")
+
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        new_payload = {
+            "sub":      str(user.id),
+            "username": user.username,
+            "email":    user.email,
+            "role":     user.role,
+            "exp":      expire,
+        }
+        new_token = jwt.encode(new_payload, jwt_secret, algorithm=ALGORITHM)
+        return {"access_token": new_token, "token_type": "bearer"}
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")

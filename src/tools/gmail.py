@@ -18,10 +18,18 @@ class GmailSender:
     def _send_email_smtp(self, message):
         if not self.smtp_password:
             raise RuntimeError("SMTP_PASSWORD is not set in the environment variables.")
+        password: str = self.smtp_password  # type: ignore[assignment]
         try:
-            with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port) as server:
-                server.login(self.smtp_username, self.smtp_password)
-                server.send_message(message)
+            if self.smtp_port == 465:
+                with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port) as server:
+                    server.login(self.smtp_username, password)
+                    server.send_message(message)
+            else:
+                with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                    server.ehlo()
+                    server.starttls()
+                    server.login(self.smtp_username, password)
+                    server.send_message(message)
             print("Successfully sent email via SMTP.")
             return True
         except Exception as e:
